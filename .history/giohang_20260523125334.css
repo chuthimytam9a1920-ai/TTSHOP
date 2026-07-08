@@ -1,0 +1,225 @@
+        body {
+            background: #f5f5f5;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+        .cart-wrapper {
+            max-width: 1500px;
+            margin: 35px auto;
+            padding: 0 20px;
+        }
+        .cart-title {
+            font-size: 38px;
+            font-weight: 900;
+            margin-bottom: 25px;
+        }
+        .cart-layout {
+            display: grid;
+            grid-template-columns: 1fr 430px;
+            gap: 25px;
+            align-items: start;
+        }
+        .cart-left,
+        .cart-summary {
+            background: #fff;
+            border-radius: 18px;
+            padding: 22px;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.08);
+        }
+        .cart-item {
+            position: relative;
+            display: grid;
+            grid-template-columns: 150px 1.6fr 120px 110px 90px 125px 130px;
+            gap: 18px;
+            align-items: center;
+            border: 1px solid #ddd;
+            border-radius: 14px;
+            padding: 22px;
+            margin-bottom: 18px;
+            background: #fff;
+        }
+        .cart-item img {
+            width: 130px;
+            height: 130px;
+            object-fit: contain;
+        }
+        .cart-name h3 {
+            font-size: 22px;
+            margin: 0 0 12px;
+            font-weight: 700;
+        }
+        .stock {
+            color: #008f4c;
+            font-weight: 700;
+        }
+        .cart-price {
+            font-size: 21px;
+            font-weight: 900;
+        }
+        .old-price {
+            color: #777;
+            text-decoration: line-through;
+            font-size: 17px;
+        }
+        .discount {
+            background: #ff4d4d;
+            color: white;
+            padding: 9px 14px;
+            border-radius: 13px;
+            font-weight: 900;
+            text-align: center;
+        }
+        .discount:empty {
+            background: transparent;
+        }
+        .qty-box {
+            display: flex;
+            height: 40px;
+        }
+        .qty-box button,
+        .qty-box span {
+            width: 40px;
+            border: 1px solid #ccc;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 17px;
+        }
+        .qty-box button {
+            cursor: pointer;
+        }
+        .cart-total-item {
+            color: #008f4c;
+            font-size: 21px;
+            font-weight: 900;
+            text-align: right;
+        }
+        .remove-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 25px;
+            height: 25px;
+            background: black;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 25px;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .coupon-box {
+            display: flex;
+            gap: 12px;
+            margin-top: 25px;
+        }
+        .coupon-box input {
+            width: 260px;
+            padding: 13px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            font-family: inherit;
+        }
+        .coupon-box button,
+        .checkout-btn {
+            background: #008f4c;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 13px 24px;
+            font-size: 17px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .coupon-box button:hover,
+        .checkout-btn:hover {
+            background: #00733d;
+        }
+        .continue-buy {
+            display: inline-block;
+            margin-top: 25px;
+            border: 1px solid #008f4c;
+            padding: 12px 18px;
+            border-radius: 8px;
+            color: #008f4c;
+            font-weight: bold;
+            text-decoration: none;
+            float: right;
+        }
+        .cart-summary h2 {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            font-size: 24px;
+            font-weight: 700;
+        }
+        .cart-summary h2 span {
+            color: #008f4c;
+            font-weight: 900;
+        }
+        .invoice-check {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #008f4c;
+            font-weight: 600;
+        }
+        .cart-summary label {
+            display: block;
+            font-weight: bold;
+            margin: 14px 0 7px;
+        }
+        .cart-summary input,
+        .cart-summary textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 7px;
+            font-size: 16px;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+        .cart-summary textarea {
+            height: 90px;
+            resize: none;
+        }
+        .note-red {
+            color: #008f4c;
+            font-weight: bold;
+            font-style: italic;
+            margin: 14px 0;
+            line-height: 1.5;
+            font-size: 14px;
+        }
+        .checkout-btn {
+            width: 100%;
+            margin-top: 15px;
+            font-size: 20px;
+        }
+        .empty-cart {
+            background: white;
+            padding: 40px;
+            border-radius: 18px;
+            text-align: center;
+            font-size: 22px;
+        }
+        .empty-cart a {
+            color: #008f4c;
+            font-weight: bold;
+            text-decoration: none;
+        }
+        @media (max-width: 1100px) {
+            .cart-layout {
+                grid-template-columns: 1fr;
+            }
+            .cart-item {
+                grid-template-columns: 120px 1fr;
+            }
+            .cart-price,
+            .old-price,
+            .discount,
+            .qty-box,
+            .cart-total-item {
+                grid-column: 2;
+            }
+        }
