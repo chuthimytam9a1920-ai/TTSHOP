@@ -41,7 +41,7 @@
             </div>
 
             <p class="forgot">
-                Quên mật khẩu? Nhấn vào <a href="#">đây</a>
+                Quên mật khẩu? Nhấn vào <a href="quenmatkhau.php">đây</a>
             </p>
 
             <button type="submit" class="login-btn">Đăng nhập</button>
