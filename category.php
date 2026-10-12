@@ -59,7 +59,13 @@ $categoryBanners = [
     'kep-giay' => 'imagescategory/ba.png',
     'dao-roc' => 'imagescategory/ba.png',
     'bia-cong' => 'imagescategory/ba.png',
-    'keo' => 'imagescategory/ba.png'
+    'keo' => 'imagescategory/ba.png',
+
+    'balo-hs'=>'imagescategory/olyy.png',
+    'balo-vp' =>'imagescategory/olyy.png',
+
+    'casio'=>'imagescategory/maytinhh.png',
+    'mt-vp' =>'imagescategory/maytinhh.png'
 ];
 
 $banner = $categoryBanners[$type] ?? 'images/olyy.png';

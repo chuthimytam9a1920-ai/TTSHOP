@@ -26,7 +26,7 @@ if ($chatCustomerName == '') {
         <div class="footer-col">
             <h3>ĐỊA CHỈ CỬA HÀNG</h3>
             <p><b>Địa chỉ:</b> thôn Châu Xá, xã Việt Yên, tỉnh Hưng Yên</p>
-            <p><b>Hotline:</b> 1900 111 222</p>
+            <p><b>Hotline:</b> 1900 888 999 </p>
             <p><b>Email:</b> TTSHOP@gmail.com</p>
 
             <div class="socials">

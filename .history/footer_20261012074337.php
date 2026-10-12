@@ -26,7 +26,7 @@ if ($chatCustomerName == '') {
         <div class="footer-col">
             <h3>ĐỊA CHỈ CỬA HÀNG</h3>
             <p><b>Địa chỉ:</b> thôn Châu Xá, xã Việt Yên, tỉnh Hưng Yên</p>
-            <p><b>Hotline:</b> 1900 111 222</p>
+            <p><b>Hotline:</b> 1900 888 999</p>
             <p><b>Email:</b> TTSHOP@gmail.com</p>
 
             <div class="socials">
@@ -224,40 +224,43 @@ if ($chatCustomerName == '') {
 </style>
 
 <script>
+// Nhận tên khách hàng được truyền an toàn từ biến PHP sang JavaScript
 const chatCustomerName = "<?php echo htmlspecialchars($chatCustomerName, ENT_QUOTES); ?>";
 
+// Hàm xử lý ẩn hoặc hiện hộp thoại chat khi bấm vào biểu tượng bong bóng chat
 function toggleChatBox() {
     const box = document.getElementById("chatBox");
+    // Nếu đang hiện (flex) thì ẩn đi (none), và ngược lại
     box.style.display = box.style.display === "flex" ? "none" : "flex";
 
+    // Nếu hộp chat được mở lên, lập tức tải lại danh sách tin nhắn cũ
     if (box.style.display === "flex") {
         loadMessages();
     }
 }
 
+// Hàm xử lý gửi tin nhắn của khách và kích hoạt phản hồi tự động
 function sendMessage() {
     const input = document.getElementById("chatInput");
-    const text = input.value.trim();
+    const text = input.value.trim(); // Lấy nội dung nhập và xóa khoảng trắng thừa
 
-    if (text === "") return;
+    if (text === "") return; // Nếu ô nhập trống rỗng thì dừng lại không gửi
 
+    // BƯỚC 1: Gửi tin nhắn của người dùng lên server (gọi file chat_send.php với vai trò là 'user')
     fetch("chat_send.php", {
         method: "POST",
-        headers: {
-            "Content-Type": "application/x-www-form-urlencoded"
-        },
-        body:
-            "message=" + encodeURIComponent(text) +
-            "&sender_type=user" +
-            "&customer_name=" + encodeURIComponent(chatCustomerName)
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "message=" + encodeURIComponent(text) +
+              "&sender_type=user" +
+              "&customer_name=" + encodeURIComponent(chatCustomerName)
     })
     .then(response => response.text())
     .then(() => {
-
+        // Khởi tạo câu trả lời mặc định của hệ thống nếu không khớp từ khóa nào
         let reply = "TT SHOP đã nhận tin nhắn của bạn ❤️. Nhân viên sẽ hỗ trợ bạn sớm nhất.";
+        const lower = text.toLowerCase(); // Chuyển tin nhắn sang chữ thường để dễ so khớp
 
-        const lower = text.toLowerCase();
-
+        // BƯỚC 2: Bộ lọc từ khóa thông minh để Bot tự động chọn câu trả lời phù hợp
         if (lower.includes("giao hàng") || lower.includes("ship")) {
             reply = "Shop giao hàng toàn quốc từ 2 - 5 ngày tuỳ khu vực 🚚";
         } else if (lower.includes("đổi trả") || lower.includes("hoàn tiền")) {
@@ -268,36 +271,35 @@ function sendMessage() {
             reply = "TT SHOP bán văn phòng phẩm, dụng cụ học tập, balo, sổ tay và máy tính cầm tay 🛍️";
         }
 
+        // BƯỚC 3: Gửi câu trả lời tự động này ngược lại hệ thống với vai trò là 'admin' (để lưu vào lịch sử chat)
         fetch("chat_send.php", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded"
-            },
-            body:
-                "message=" + encodeURIComponent(reply) +
-                "&sender_type=admin" +
-                "&customer_name=" + encodeURIComponent(chatCustomerName)
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: "message=" + encodeURIComponent(reply) +
+                  "&sender_type=admin" +
+                  "&customer_name=" + encodeURIComponent(chatCustomerName)
         })
         .then(response => response.text())
         .then(() => {
-            input.value = "";
-            loadMessages();
+            input.value = ""; // Xóa sạch chữ trong ô nhập sau khi gửi xong
+            loadMessages();   // Tải lại khung chat để hiển thị cả tin nhắn vừa gửi và tin nhắn của Bot
         });
     });
 }
 
+// Hàm tải toàn bộ tin nhắn từ cơ sở dữ liệu lên khung chat thông qua file chat_load.php
 function loadMessages() {
     fetch("chat_load.php?customer=" + encodeURIComponent(chatCustomerName))
         .then(response => response.text())
         .then(data => {
             const body = document.getElementById("chatBody");
 
+            // Đổ nội dung lời chào mặc định, các nút câu hỏi nhanh (Quick Reply) kết hợp với dữ liệu lịch sử chat ($data)
             body.innerHTML = `
                 <div class="bot-message">
                     Xin chào 👋<br>
                     TT SHOP có thể hỗ trợ gì cho bạn?
                 </div>
-
                 <div class="quick-questions">
                     <button onclick="quickQuestion('shop có giao hàng không')">🚚 Giao hàng</button>
                     <button onclick="quickQuestion('shop có đổi trả không')">🔄 Đổi trả</button>
@@ -306,24 +308,27 @@ function loadMessages() {
                 </div>
             ` + data;
 
+            // Tự động cuộn khung chat xuống dưới cùng để người dùng luôn nhìn thấy tin nhắn mới nhất
             body.scrollTop = body.scrollHeight;
         });
 }
 
+// Hàm xử lý khi click vào các nút câu hỏi nhanh: Điền chữ vào ô nhập rồi tự động kích hoạt hàm gửi
 function quickQuestion(text) {
     document.getElementById("chatInput").value = text;
     sendMessage();
 }
 
+// Hàm lắng nghe phím bấm: Nếu người dùng đang gõ ở ô nhập và nhấn phím "Enter" thì tự động gửi tin luôn
 function handleChatEnter(event) {
     if (event.key === "Enter") {
         sendMessage();
     }
 }
 
+// Đồng hồ chạy ngầm: Cứ mỗi 3000ms (3 giây), nếu hộp chat đang mở thì tự động tải tin nhắn mới một lần (Realtime)
 setInterval(function() {
     const box = document.getElementById("chatBox");
-
     if (box && box.style.display === "flex") {
         loadMessages();
     }
