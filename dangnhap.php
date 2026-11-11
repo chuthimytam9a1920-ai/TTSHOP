@@ -34,7 +34,6 @@
                 <label for="email">Email <span>*</span></label>
                 <input type="email" id="email" name="email" placeholder="Nhập email của bạn" required autocomplete="none">
             </div>
-
             <div class="form-group">
                 <label for="matkhau">Mật khẩu <span>*</span></label>
                 <input type="password" id="matkhau" name="matkhau" placeholder="Nhập mật khẩu" required autocomplete="new-password">

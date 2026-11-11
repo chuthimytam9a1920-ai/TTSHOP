@@ -24,7 +24,6 @@ if ($customer_name == '') {
         $customer_name = 'Khách';
     }
 }
-
 $sql = "
     INSERT INTO chat_messages (
         customer_name,

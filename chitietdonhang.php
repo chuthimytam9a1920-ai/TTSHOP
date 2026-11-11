@@ -128,7 +128,6 @@ $review = mysqli_fetch_assoc($resultReview);
             margin-bottom: 16px;
             box-shadow: 0 4px 12px rgba(0,0,0,.05);
         }
-
         .order-product img {
             width: 120px;
             height: 120px;

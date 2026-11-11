@@ -13,7 +13,6 @@ if (!isset($_SESSION['is_login']) || $_SESSION['is_login'] !== true) {
 
 // Lấy ID của người dùng đang đăng nhập (mặc định bằng 0 nếu không tìm thấy)
 $user_id = $_SESSION['user_id'] ?? 0;
-
 // Nhận các thông tin chỉnh sửa mới gửi lên từ form và cắt bỏ khoảng trắng thừa ở 2 đầu
 $ho = trim($_POST['ho'] ?? '');
 $ten = trim($_POST['ten'] ?? '');

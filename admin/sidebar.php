@@ -11,7 +11,6 @@
        class="<?php echo ($page == 'products') ? 'active' : ''; ?>">
         Sản phẩm trang chủ
     </a>
-
     <a href="category_products.php"
        class="<?php echo ($page == 'category_products') ? 'active' : ''; ?>">
         Sản phẩm danh mục

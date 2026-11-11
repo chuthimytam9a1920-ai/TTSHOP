@@ -83,6 +83,5 @@ unset($_SESSION['reset_success'], $_SESSION['reset_error']);
         </div>
 
     </div>
-
 </body>
 </html>

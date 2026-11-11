@@ -40,7 +40,6 @@ if ($user = mysqli_fetch_assoc($result)) {
 
 // Nếu email không tồn tại hoặc mật khẩu bị sai: Tạo một thông báo lỗi lưu vào session
 $_SESSION['login_error'] = "Email hoặc mật khẩu không đúng!";
-
 // Chuyển hướng người dùng quay trở lại trang đăng nhập để thông báo lỗi và yêu cầu nhập lại
 header("Location: dangnhap.php");
 exit();

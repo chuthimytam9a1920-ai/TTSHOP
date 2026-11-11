@@ -24,7 +24,6 @@ if ($ho === '' || $ten === '' || $email === '' || $sdt === '' || $matkhau === ''
     header("Location: dangky.php");
     exit();
 }
-
 // Chuẩn bị câu lệnh SQL kiểm tra trùng lặp: Xem Email này đã có ai đăng ký trước đó chưa
 $check = mysqli_prepare($conn, "SELECT id FROM users WHERE email = ?");
 mysqli_stmt_bind_param($check, "s", $email);

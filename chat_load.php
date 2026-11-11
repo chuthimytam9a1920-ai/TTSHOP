@@ -6,7 +6,6 @@ $customer = trim($_GET['customer'] ?? '');
 if ($customer == '') {
     exit;
 }
-
 $sql = "
     SELECT *
     FROM chat_messages

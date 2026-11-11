@@ -254,6 +254,5 @@ include "sidebar.php";
     </div>
 </main>
 </div>
-
 </body>
 </html>

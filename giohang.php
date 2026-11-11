@@ -29,7 +29,6 @@ $is_logged_in = (isset($_SESSION['is_login']) && $_SESSION['is_login'] === true)
 </head>
 <body>
 <?php include "header.php"; // // Nhúng phần đầu trang (thanh menu, logo,...) vào đây ?>
-
 <div class="cart-wrapper">
     <h1 class="cart-title">GIỎ HÀNG</h1>
     

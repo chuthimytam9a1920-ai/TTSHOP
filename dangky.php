@@ -183,7 +183,6 @@ function toggleCustomerType(type) {
     }
 }
 </script>
-
 <?php include "footer.php"; ?>
 
 </body>

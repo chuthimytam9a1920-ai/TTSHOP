@@ -111,7 +111,6 @@ try {
     if (!$stmtDetail) {
         throw new Exception("Lỗi prepare chitiet_donhang: " . mysqli_error($conn));
     }
-
     foreach ($cart as $item) {
         $product_id   = (int)($item['id'] ?? 0);
         $ten_san_pham = $item['name'] ?? '';

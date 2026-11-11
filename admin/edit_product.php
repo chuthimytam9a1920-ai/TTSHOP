@@ -50,7 +50,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = "Lỗi tải ảnh lên.";
         }
     }
-
     if ($error === "") {
         $sql = "UPDATE products SET 
                     name = ?, 

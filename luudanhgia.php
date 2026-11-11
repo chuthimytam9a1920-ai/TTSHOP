@@ -23,7 +23,6 @@ $nhan_xet = trim($_POST['nhan_xet'] ?? '');
 if ($donhang_id <= 0 || $so_sao < 1 || $so_sao > 5) {
     die("Dữ liệu đánh giá không hợp lệ.");
 }
-
 // BƯỚC 1: Kiểm tra xem đơn hàng này có thật sự là của người dùng này và đã ở trạng thái "Đã giao" hay chưa
 $sqlCheckOrder = "
     SELECT id

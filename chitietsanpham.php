@@ -168,7 +168,6 @@ if (!$product) {
                 Sản phẩm chưa có thông tin chi tiết.
             <?php } ?>
         </div>
-
         <div class="btn-group">
             <form method="POST" action="add_to_cart.php" class="add-cart-form">
                 <input type="hidden" name="id" value="<?php echo (int)$product['id']; ?>">

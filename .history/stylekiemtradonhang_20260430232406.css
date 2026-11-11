@@ -1,0 +1,126 @@
+/* ===== BREADCRUMB ===== */
+.breadcrumb {
+    background: #e6f4ee; /* xanh nhạt giống ảnh */
+    color: #2c3e50;
+    padding: 14px 20px;
+    border-radius: 10px;
+    font-size: 15px;
+    margin-bottom: 20px;
+}
+/* link bên trong */
+.breadcrumb a {
+        font-size: 16px;
+    margin-bottom: 22px;
+height: 12px;
+    color: black;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.breadcrumb b {
+    color: black;
+        font-size: 16px;
+    margin-bottom: 22px;
+
+}
+/* ===== KHUNG CHUNG ===== */
+.order-check-section {
+    display: flex;
+    justify-content: center;   /* căn giữa ngang */
+    align-items: center;       /* căn giữa dọc */
+    min-height: 70vh;          /* chiếm chiều cao màn hình */
+}
+/* ===== BOX ===== */
+.order-check-box {
+    width: 800px;
+    background: linear-gradient(135deg, white, white);
+    padding: 30px;
+    border-radius: 12px;
+    height: 20px;
+    color: white;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+}
+
+/* ===== TITLE ===== */
+.order-check-box h2 {
+    font-size: 20px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+/* ===== METHOD ===== */
+.method-title {
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.method {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.method input {
+    margin-right: 6px;
+}
+
+/* ===== INPUT ===== */
+.input-group {
+    margin-bottom: 20px;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 14px;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 10px;
+    border-radius: 6px;
+    border: none;
+    outline: none;
+}
+
+/* ===== NOTE ===== */
+.note {
+    font-size: 13px;
+    margin-bottom: 20px;
+}
+
+/* ===== BUTTON ===== */
+.btn-check {
+    width: 100%;
+    padding: 12px;
+    background: #ff8c00;
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.btn-check:hover {
+    background: #ff6a00;
+}
+.order-form-card input {
+    width: 100%;
+    padding: 12px;
+    border-radius: 6px;
+    border: none;
+    margin-top: 8px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+.order-form-card input[type="email"] {
+    width: 100%;
+}
+.order-form-card {
+    background: linear-gradient(135deg, #1fa365, #0eba75); /* xanh lá */
+    color: #fff;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+}

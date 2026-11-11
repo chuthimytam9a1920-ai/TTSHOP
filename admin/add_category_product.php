@@ -1,7 +1,6 @@
 <?php
 include "check_admin.php";
 include "../connect.php";
-
 $categories = [
     'vo-oly' => 'Vở ô ly',
     'vo-caro' => 'Vở caro',

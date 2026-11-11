@@ -53,7 +53,6 @@ foreach ($_SESSION['cart'] as $item) {
     $total += $price * $itemQty;
     $cart_count += $itemQty;
 }
-
 // Trả về chuỗi JSON chứa toàn bộ kết quả mới để JavaScript ở giao diện cập nhật ngay lập tức mà không cần load lại trang
 echo json_encode([
     'status' => 'success',

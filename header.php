@@ -249,7 +249,6 @@ if (isset($_SESSION['cart'])) {
                     <li><a href="category.php?type=balo-vp">Balo văn phòng</a></li>
 
                 </ul>
-
             </li>
 
             <!-- MÁY TÍNH -->

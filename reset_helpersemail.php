@@ -91,7 +91,6 @@ function sendResetEmail($email, $resetLink)
         // ==================================
         // NỘI DUNG EMAIL
         // ==================================
-
         $mail->isHTML(true);
 
         $mail->Subject = 'Yêu cầu đặt lại mật khẩu - TT SHOP';

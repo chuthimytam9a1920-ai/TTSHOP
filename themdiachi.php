@@ -45,7 +45,6 @@ mysqli_stmt_bind_param($stmt, "issssssi", $user_id, $ho_ten, $sdt, $cong_ty, $di
 
 // Thực thi lưu địa chỉ mới vào database
 mysqli_stmt_execute($stmt);
-
 // Sau khi thêm thành công, chuyển hướng người dùng quay trở lại trang quản lý tài khoản
 header("Location: taikhoan.php");
 exit();

@@ -581,6 +581,5 @@ districtSelect.addEventListener("change", function () {
         });
 });
 </script>
-
 </body>
 </html>

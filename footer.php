@@ -325,7 +325,6 @@ function handleChatEnter(event) {
         sendMessage();
     }
 }
-
 // Đồng hồ chạy ngầm: Cứ mỗi 3000ms (3 giây), nếu hộp chat đang mở thì tự động tải tin nhắn mới một lần (Realtime)
 setInterval(function() {
     const box = document.getElementById("chatBox");

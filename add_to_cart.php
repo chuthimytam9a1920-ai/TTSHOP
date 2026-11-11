@@ -4,7 +4,6 @@ session_start();
 include "connect.php";
 
 $isAjax = ($_SERVER['REQUEST_METHOD'] === 'POST');
-
 if ($isAjax) {
     header('Content-Type: application/json; charset=UTF-8');
 

@@ -140,7 +140,6 @@ try {
 
         error_log('TT SHOP: Failed to send password reset email.');
     }
-
     // 10. Thông báo chung
     redirectReset('reset_success', $successMessage);
 

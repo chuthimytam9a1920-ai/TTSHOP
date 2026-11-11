@@ -22,7 +22,6 @@ if ($id > 0) {
     mysqli_stmt_bind_param($stmtDeleteOrder, "i", $id);
     mysqli_stmt_execute($stmtDeleteOrder);
 }
-
 header("Location: orders.php");
 exit();
 ?>

@@ -66,7 +66,6 @@ $tongCong = $tongTien + $shippingFee;
             grid-template-columns: 58% 42%;
             min-height: 100vh;
         }
-
         .checkout-left {
             padding: 55px 70px;
             border-right: 1px solid #ddd;

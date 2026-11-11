@@ -394,7 +394,6 @@ function tinhGiamGia($oldPrice, $price) {
 
                                 </div>
                             <?php } ?>
-
                             <div class="quantity-label">Số lượng:</div>
 
                             <div class="quantity-box">

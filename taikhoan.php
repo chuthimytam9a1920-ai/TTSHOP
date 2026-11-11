@@ -569,7 +569,6 @@ if ($diemCanLenHang < 0) {
                         <label>Địa chỉ:</label>
                         <input type="text" name="diachi" placeholder="Nhập địa chỉ của bạn" value="<?php echo htmlspecialchars($diachi); ?>">
                     </div>
-
                     <button type="submit" class="update-btn">Lưu thay đổi</button>
 
                 </form>

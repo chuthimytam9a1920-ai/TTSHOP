@@ -213,7 +213,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $keyword !== '') {
                 value="<?php echo htmlspecialchars($keyword); ?>"
                 required
             >
-
             <div class="captcha-box">
                 <div class="captcha-left">
                     <label style="display:flex;align-items:center;gap:10px;margin:0;">

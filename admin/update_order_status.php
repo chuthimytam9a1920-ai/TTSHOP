@@ -12,7 +12,6 @@ $allowed = [
     'Đã giao',
     'Đã huỷ'
 ];
-
 if ($id > 0 && in_array($trang_thai, $allowed)) {
     $stmt = mysqli_prepare($conn, "UPDATE donhang SET trang_thai = ? WHERE id = ?");
     mysqli_stmt_bind_param($stmt, "si", $trang_thai, $id);

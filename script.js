@@ -37,7 +37,7 @@ if (mainBanner) {
 
 // BỘ LẮNG NGHE SỰ KIỆN CLICK TOÀN TRANG: Phục vụ cho các nút tăng giảm số lượng mua hàng nhanh
 document.addEventListener("click", function (e) {
-  
+
   // TRƯỜNG HỢP 1: Nếu người dùng click vào nút tăng số lượng (có chứa class "qty-plus")
   if (e.target.classList.contains("qty-plus")) {
     const box = e.target.closest(".quantity-box"); // Tìm khung bọc chứa bộ số lượng này

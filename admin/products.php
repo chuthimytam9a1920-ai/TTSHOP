@@ -16,7 +16,6 @@ if ($keyword !== '') {
         $where[] = "name LIKE '%$safeKeyword%'";
     }
 }
-
 if ($filter === 'hot') {
     $where[] = "sold_count > 500";
 }
