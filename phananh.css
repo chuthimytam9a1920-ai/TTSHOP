@@ -1,0 +1,480 @@
+/* =========================================
+   TT SHOP - PHẢN ÁNH & GÓP Ý KHÁCH HÀNG
+========================================= */
+
+/* 1. NỀN TRANG VÀ HEADER */
+
+.pa-shop {
+    background: #f1f6f3;
+    margin: 0;
+}
+
+.pa-shop > header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    margin: 0;
+    z-index: 999999;
+}
+
+/* 2. BỐ CỤC CHUNG */
+
+.pa-wrap {
+    max-width: 1320px;
+    margin: auto;
+    padding: 30px 24px 48px;
+}
+
+.pa-ui {
+    color: #23382d;
+    line-height: 1.55;
+    min-width: 0;
+}
+
+.pa-ui * {
+    box-sizing: border-box;
+}
+
+.pa-ui h1,
+.pa-ui h2,
+.pa-ui h3 {
+    line-height: 1.3;
+}
+
+.pa-ui h2 {
+    font-size: 22px;
+    margin: 0 0 15px;
+    color: #165d42;
+}
+
+.pa-ui h3 {
+    font-size: 16px;
+    margin: 18px 0 10px;
+}
+
+.pa-ui p {
+    margin: 0 0 12px;
+}
+
+.pa-ui small {
+    font-size: 12px;
+    color: #697c70;
+}
+
+/* 3. ĐƯỜNG DẪN ĐIỀU HƯỚNG */
+
+.pa-crumb {
+    font-size: 14px;
+    color: #687b70;
+    margin-bottom: 16px;
+}
+
+.pa-crumb a,
+.pa-back,
+.pa-link,
+.pa-pages a,
+.pa-meta a {
+    color: #08794f;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+/* 4. BANNER TIÊU ĐỀ */
+
+.pa-hero {
+    padding: 32px;
+    border-radius: 18px;
+    background: linear-gradient(
+        125deg,
+        #096247,
+        #169a6a
+    );
+    color: white;
+    margin-bottom: 24px;
+}
+
+.pa-hero h1 {
+    font-size: clamp(25px, 4vw, 36px);
+    margin: 7px 0 8px;
+}
+
+.pa-hero p {
+    margin: 0;
+    color: #e5f7ed;
+}
+
+.pa-kicker {
+    font-size: 12px;
+    letter-spacing: 1.4px;
+    font-weight: bold;
+    color: #cae8d8;
+}
+
+/* 5. BỐ CỤC HAI CỘT */
+
+.pa-grid {
+    display: grid;
+    grid-template-columns:
+        minmax(230px, 310px)
+        minmax(0, 1fr);
+    gap: 22px;
+    align-items: start;
+}
+
+.pa-panel {
+    background: #fff;
+    padding: 24px;
+    border: 1px solid #dce8df;
+    border-radius: 15px;
+    box-shadow: 0 8px 22px #123f2210;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* 6. NÚT BẤM */
+
+.pa-btn,
+.pa-ui button.pa-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #08794f;
+    color: #fff;
+    text-decoration: none;
+    padding: 10px 16px;
+    border: 1px solid #08794f;
+    border-radius: 9px;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    min-height: 42px;
+    line-height: 1.35;
+}
+
+.pa-btn:hover,
+.pa-ui button.pa-btn:hover {
+    background: #075f40;
+}
+
+.pa-btn.pa-secondary {
+    background: white;
+    color: #08794f;
+    border-color: #b7d6c3;
+}
+
+.pa-btn.pa-secondary:hover {
+    background: #eaf5ee;
+}
+
+.pa-muted {
+    color: #617569;
+    font-size: 13px;
+}
+
+/* 7. DANH SÁCH PHẢN ÁNH */
+
+.pa-list .pa-btn {
+    width: 100%;
+    margin-bottom: 12px;
+}
+
+.pa-item {
+    display: grid;
+    gap: 5px;
+    padding: 13px 8px;
+    border-top: 1px solid #e6eee8;
+    text-decoration: none;
+    color: #23382d;
+}
+
+.pa-item strong {
+    font-size: 14px;
+}
+
+.pa-item.selected,
+.pa-item:hover {
+    background: #eaf6ee;
+    border-radius: 8px;
+}
+
+/* 8. TRẠNG THÁI PHẢN ÁNH */
+
+.pa-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-self: start;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 9px;
+    border-radius: 999px;
+}
+
+.pa-badge.pending {
+    color: #8b500b;
+    background: #fff0d4;
+}
+
+.pa-badge.processing {
+    color: #245ca1;
+    background: #e4efff;
+}
+
+.pa-badge.resolved {
+    color: #12663e;
+    background: #ddf4e6;
+}
+
+/* 9. PHÂN TRANG */
+
+.pa-pages {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font-size: 13px;
+    margin: 16px 0;
+}
+
+/* 10. CHI TIẾT PHẢN ÁNH */
+
+.pa-detail-head {
+    display: flex;
+    gap: 12px;
+    align-items: start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    margin: 12px 0;
+}
+
+.pa-detail-head h2 {
+    margin: 5px 0;
+}
+
+.pa-message {
+    padding: 15px;
+    border: 1px solid #e0e9e2;
+    border-radius: 11px;
+    margin: 12px 0;
+    background: #f5f7f6;
+    overflow-wrap: anywhere;
+}
+
+.pa-message.from-admin {
+    background: #e9f7ee;
+    border-color: #cce8d5;
+}
+
+.pa-message small {
+    margin-left: 8px;
+}
+
+.pa-text {
+    white-space: pre-wrap;
+    margin-top: 8px;
+}
+
+.pa-image {
+    display: block;
+    max-width: 100%;
+    max-height: 280px;
+    object-fit: contain;
+    border-radius: 8px;
+    margin-top: 12px;
+}
+
+/* 11. BIỂU MẪU GỬI PHẢN ÁNH */
+
+.pa-form {
+    margin-top: 18px;
+}
+
+.pa-form label {
+    display: block;
+    font-size: 14px;
+    font-weight: bold;
+    margin: 14px 0 6px;
+}
+
+.pa-form input:not([type=hidden]),
+.pa-form textarea,
+.pa-form select,
+.pa-readonly,
+.pa-filters input,
+.pa-filters select {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1px solid #c9dcd0;
+    border-radius: 8px;
+    font: inherit;
+    color: #23382d;
+    background: #fff;
+    min-width: 0;
+}
+
+.pa-readonly {
+    background: #f4f7f5;
+}
+
+.pa-form textarea {
+    resize: vertical;
+}
+
+.pa-form .pa-muted {
+    margin-top: 6px;
+}
+
+.pa-form .pa-btn {
+    margin-top: 12px;
+}
+
+/* 12. THÔNG BÁO */
+
+.pa-alert {
+    padding: 13px 16px;
+    border-radius: 9px;
+    margin: 0 0 18px;
+    font-weight: 600;
+}
+
+.pa-error {
+    background: #fff0ef;
+    color: #a03028;
+    border: 1px solid #f1c8c4;
+}
+
+.pa-ok {
+    background: #e6f6eb;
+    color: #116038;
+    border: 1px solid #c4e8d0;
+}
+
+/* 13. THỐNG KÊ PHÍA ADMIN */
+
+.pa-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 22px;
+}
+
+.pa-metric {
+    display: grid;
+    gap: 7px;
+    text-decoration: none;
+    color: #23382d;
+}
+
+.pa-metric strong {
+    font-size: 30px;
+}
+
+.pa-admin-detail {
+    margin-bottom: 22px;
+}
+
+/* 14. THÔNG TIN KHÁCH HÀNG */
+
+.pa-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 14px 0;
+}
+
+.pa-meta > div {
+    display: grid;
+    padding: 13px;
+    border-radius: 9px;
+    background: #f4f7f5;
+}
+
+.pa-meta span {
+    font-size: 13px;
+}
+
+/* 15. BỘ LỌC VÀ TÌM KIẾM ADMIN */
+
+.pa-filters {
+    display: grid;
+    grid-template-columns:
+        minmax(160px, 1fr)
+        minmax(145px, 210px)
+        auto auto;
+    gap: 10px;
+    align-items: center;
+    margin: 18px 0;
+}
+
+/* 16. BẢNG QUẢN LÝ PHẢN ÁNH */
+
+.pa-table-scroll {
+    overflow: auto;
+}
+
+.pa-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 760px;
+    font-size: 13px;
+}
+
+.pa-table th,
+.pa-table td {
+    text-align: left;
+    vertical-align: top;
+    padding: 13px 10px;
+    border-bottom: 1px solid #e5ece7;
+}
+
+.pa-table th {
+    background: #f2f7f3;
+    color: #376049;
+    font-weight: 700;
+}
+
+.pa-ui :focus-visible {
+    outline: 3px solid #72bd94;
+    outline-offset: 2px;
+}
+
+/* 17. RESPONSIVE TABLET */
+
+@media (max-width: 900px) {
+
+    .pa-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .pa-filters {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .pa-wrap {
+        padding: 20px 12px;
+    }
+
+    .pa-panel {
+        padding: 18px;
+    }
+
+}
+
+/* 18. RESPONSIVE ĐIỆN THOẠI */
+
+@media (max-width: 520px) {
+
+    .pa-metrics,
+    .pa-meta,
+    .pa-filters {
+        grid-template-columns: 1fr;
+    }
+
+    .pa-hero {
+        padding: 22px;
+    }
+
+}

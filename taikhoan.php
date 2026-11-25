@@ -554,6 +554,12 @@ try {
                     <i class="fas fa-map-marker-alt"></i> Sổ địa chỉ (<?php echo $soDiaChi; ?>)
                 </li>
 
+                <li>
+                    <a href="phananh.php" style="color:inherit;text-decoration:none;display:block">
+                        <i class="fas fa-comment-dots"></i> Phản ánh &amp; góp ý
+                    </a>
+                </li>
+
                 <li class="logout-item">
                     <a href="dangxuat.php">
                         <i class="fas fa-sign-out-alt"></i> Đăng xuất

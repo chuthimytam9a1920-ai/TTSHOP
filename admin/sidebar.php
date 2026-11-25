@@ -29,12 +29,21 @@ $menuPages = [
 
     'vouchers.php' => 'vouchers',
 
-    'chat.php' => 'chat'
+    'chat.php' => 'chat',
+    'feedback.php' => 'feedback'
 ];
 
 // Giữ tương thích với biến $page của các trang Admin cũ.
 
 $activePage = $page ?? ($menuPages[$currentFile] ?? '');
+// Chỉ đếm phản ánh chờ xử lý; bỏ qua nếu chưa nhập migration.
+$paPendingCount = 0;
+if (isset($conn) && $conn instanceof mysqli) {
+    try {
+        $paCountResult = @$conn->query("SELECT COUNT(*) AS n FROM phan_anh WHERE trang_thai='pending'");
+        if ($paCountResult) { $paPendingCount = (int)$paCountResult->fetch_assoc()['n']; $paCountResult->free(); }
+    } catch (Throwable $ignored) { /* Không ảnh hưởng các trang Admin cũ. */ }
+}
 
 ?>
 
@@ -74,6 +83,10 @@ $activePage = $page ?? ($menuPages[$currentFile] ?? '');
         </a>
         <a href="chat.php" class="<?php echo ($activePage === 'chat') ? 'active' : ''; ?>">
             <span class="nav-icon">✉</span><span>Tin nhắn</span>
+        </a>
+        <a href="feedback.php" class="<?= $activePage === 'feedback' ? 'active' : '' ?>">
+            <span class="nav-icon">☏</span><span>Phản ánh &amp; góp ý</span>
+            <?php if ($paPendingCount > 0): ?><span style="margin-left:auto;background:#ffd785;color:#744400;border-radius:12px;padding:2px 7px;font-size:11px"><?= $paPendingCount ?></span><?php endif; ?>
         </a>
     </nav>
 
