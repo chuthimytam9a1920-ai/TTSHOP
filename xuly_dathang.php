@@ -37,7 +37,6 @@ function dh_clear_checkout(): void {
         $_SESSION['checkout_old'], $_SESSION['checkout_error'],
         $_SESSION['voucher_code'], $_SESSION['voucher_user_id']);
 }
-
 // Đọc lại giá và giữ khóa sản phẩm đến khi hoàn tất transaction.
 function dh_refresh_cart(mysqli $conn, array $cart): array {
     if (!$cart) throw new DomainException('Giỏ hàng đang trống.');
@@ -81,7 +80,7 @@ function dh_refresh_cart(mysqli $conn, array $cart): array {
         $item['price']=$price; $item['old_price']=(int)$p['old_price']; $item['qty']=$qty;
         $updated[$key]=$item;
     }
-    ksort($reviewCart, SORT_STRING);
+       ksort($reviewCart, SORT_STRING);
     $_SESSION['cart'] = $updated;
     return ['items'=>$items,'cart'=>$reviewCart,'subtotal'=>$subtotal];
 }
@@ -125,10 +124,12 @@ if ($method === 'GET') {
     if (!is_string($reviewId) || !preg_match('/^[a-f0-9]{64}$/D', $reviewId)) {
         dh_fail('Phiên xác nhận đơn hàng không hợp lệ. Vui lòng kiểm tra lại.');
     }
-    // Mỗi mã review tạo đúng một mã đơn xác định, không phụ thuộc thời gian gửi lại.
-    // 50 ký tự, vừa với cột donhang.ma_don VARCHAR(50).
-    $ma_don = 'TT'.substr(hash('sha256', $userId.':'.$reviewId), 0, 48);
-    $review = $_SESSION['checkout_review'] ?? [];
+    // Khóa chống đặt trùng tách khỏi mã đơn hàng hiển thị.
+    // Giữ công thức cũ để nhận diện cả các đơn đã được chuyển đổi.
+    $requestKey = 'TT'.substr(hash('sha256', $userId.':'.$reviewId), 0, 48);
+    // Mã tạm chỉ tồn tại trong transaction, không hiển thị cho khách hàng.
+    $ma_don = $requestKey;
+        $review = $_SESSION['checkout_review'] ?? [];
     $matchesReview = is_array($review) && (int)($review['user_id'] ?? 0) === $userId
         && is_string($review['id'] ?? null) && hash_equals($review['id'], $reviewId);
     $conn = null; $inTransaction = false;
@@ -155,12 +156,13 @@ if ($method === 'GET') {
         
         // Nếu request đã được lưu trước đó, trả lại biên nhận thay vì INSERT lần nữa.
         $stmt = $conn->prepare('SELECT id, ma_don, ma_giam_gia, tien_giam_gia, tong_cong
-            FROM donhang WHERE user_id = ? AND ma_don = ? LIMIT 1');
+            FROM donhang WHERE user_id = ? AND checkout_request_key = ? LIMIT 1');
         try {
-            $stmt->bind_param('is', $userId, $ma_don); $stmt->execute();
+            $stmt->bind_param('is', $userId, $requestKey); $stmt->execute();
             $existing = $stmt->get_result()->fetch_assoc();
         } finally { $stmt->close(); }
         if ($existing) {
+            $ma_don = (string)$existing['ma_don'];
             $conn->commit(); $inTransaction = false;
             // Không xóa giỏ hàng mới nếu đây là request cũ được gửi lại.
             if ($matchesReview) dh_clear_checkout();
@@ -198,8 +200,7 @@ if ($method === 'GET') {
             || ($_POST['review_total'] ?? null) !== (string)($review['total'] ?? '')) {
             throw new DomainException('Mã giảm giá hoặc tổng tiền đã thay đổi. Vui lòng xác nhận lại.');
         }
-
-        // Giá và số lượng phải khớp với bản review ở bước 7.
+               // Giá và số lượng phải khớp với bản review ở bước 7.
         $fresh = dh_refresh_cart($conn, $cart);
         if ($fresh['cart'] !== ($review['cart'] ?? null)) {
             throw new DomainException('Giá hoặc số lượng sản phẩm đã thay đổi. Vui lòng kiểm tra lại đơn hàng.');
@@ -227,15 +228,34 @@ if ($method === 'GET') {
         $stmt = $conn->prepare('INSERT INTO donhang
             (user_id, ma_don, ho_ten, sdt, email, dia_chi, tinh_thanh, quan_huyen,
              phuong_xa, phuong_thuc, tam_tinh, phi_van_chuyen, tong_cong, trang_thai,
-             ma_giam_gia, tien_giam_gia, hang_thanh_vien)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+             ma_giam_gia, tien_giam_gia, hang_thanh_vien, checkout_request_key)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         try {
-            $stmt->bind_param('isssssssssiiissis', $userId, $ma_don, $ho, $sdt, $email,
+            $stmt->bind_param('isssssssssiiississ', $userId, $ma_don, $ho, $sdt, $email,
                 $diachi, $tinh, $huyen, $xa, $payment, $subtotal, $shipping, $total,
-                $status, $savedCode, $discount, $tier);
+                $status, $savedCode, $discount, $tier, $requestKey);
             $stmt->execute(); $orderId = (int)$conn->insert_id;
         } finally { $stmt->close(); }
         if ($orderId <= 0) throw new RuntimeException('Không xác định được ID đơn hàng.');
+
+        // TT + thời điểm tạo đơn + ID đơn (ít nhất 4 chữ số, không cắt ID lớn).
+        // Dùng created_at của database; 4 chữ số phân biệt với mã cũ 3 số ngẫu nhiên.
+        $stmt = $conn->prepare("UPDATE donhang SET ma_don = CONCAT('TT',
+            DATE_FORMAT(created_at, '%Y%m%d%H%i%s'),
+            LPAD(CAST(id AS CHAR), GREATEST(4, CHAR_LENGTH(CAST(id AS CHAR))), '0'))
+            WHERE id = ?");
+        try {
+            $stmt->bind_param('i', $orderId); $stmt->execute();
+            if ($stmt->affected_rows !== 1) throw new RuntimeException('Không thể tạo mã đơn hàng.');
+        } finally { $stmt->close(); }
+        $stmt = $conn->prepare('SELECT ma_don FROM donhang WHERE id = ?');
+        try {
+            $stmt->bind_param('i', $orderId); $stmt->execute();
+            $savedOrder = $stmt->get_result()->fetch_assoc();
+            if (!$savedOrder) throw new RuntimeException('Không tìm thấy mã đơn hàng.');
+            $ma_don = (string)$savedOrder['ma_don'];
+        } finally { $stmt->close(); }
+
 
         // Lưu chi tiết từng sản phẩm và catalog_id đúng khóa ngoại.
         $stmt = $conn->prepare('INSERT INTO chitiet_donhang
@@ -251,8 +271,7 @@ if ($method === 'GET') {
                 $stmt->execute();
             }
         } finally { $stmt->close(); }
-
-        // Ghi nhận một lượt sử dụng voucher chỉ khi đơn hàng được lưu thành công.
+       // Ghi nhận một lượt sử dụng voucher chỉ khi đơn hàng được lưu thành công.
         if ($v['voucher'] !== null) {
             $voucherId = (int)$v['voucher']['id'];
             $shipDiscount = (int)$v['shipping_discount'];
@@ -291,7 +310,7 @@ $ma_don = (string)$receipt['ma_don'];
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-    <meta charset="UTF-8">
+       <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Đặt hàng thành công</title>
 
@@ -392,7 +411,3 @@ $ma_don = (string)$receipt['ma_don'];
         Đồng ý
     </button>
 
-</div>
-
-</body>
-</html>

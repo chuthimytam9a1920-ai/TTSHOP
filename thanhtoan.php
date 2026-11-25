@@ -31,7 +31,6 @@ $isPost = ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST';
 if ($isPost && !csrf_check($_POST['csrf_token'] ?? null)) {
     http_response_code(403); exit('Phiên xác thực không hợp lệ. Vui lòng quay lại và tải lại trang.');
 }
-
 // Tính lại giá từ hai bảng sản phẩm như giohang.php.
 function tt_refresh_cart(mysqli $conn): int {
     $cart = $_SESSION['cart'] ?? [];
@@ -61,7 +60,7 @@ function tt_refresh_cart(mysqli $conn): int {
         if ($price > intdiv(2147483647 - 30000 - $subtotal, $qty)) {
             throw new DomainException('Tổng giá trị đơn hàng vượt giới hạn.');
         }
-        $subtotal += $price * $qty;
+                $subtotal += $price * $qty;
         $item['id'] = $id; $item['qty'] = $qty;
         $item['name'] = $p['name']; $item['price'] = $price;
         $item['old_price'] = (int)$p['old_price'];
@@ -106,9 +105,8 @@ $user = [];
 $delivery = [];
 $state = ['ok'=>false,'items'=>[],'member'=>null,'vouchers'=>[],'code'=>'','message'=>'',
     'subtotal'=>0,'discount'=>0,'shipping'=>0,'shipping_discount'=>0,'total'=>0];
-
 try {
-    mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+       mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
     require __DIR__ . '/connect.php';
     $stmt = $conn->prepare('SELECT ho, ten, email, sdt, diachi FROM users WHERE id = ?');
     try {
@@ -152,7 +150,7 @@ try {
         // Không cho dùng lại thông tin giao hàng cũ sau POST thất bại.
         unset($_SESSION['checkout_info']);
     }
-    } catch (Throwable $e) {
+} catch (Throwable $e) {
     $state['ok'] = false;
     $error = $e instanceof DomainException ? $e->getMessage() : 'Không thể tải thông tin thanh toán. Vui lòng thử lại.';
     if (!($e instanceof DomainException)) error_log('TT SHOP thanhtoan: '.$e->getMessage());
@@ -211,7 +209,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
     <div class="user-box"><div class="user-icon"><i class="fas fa-user"></i></div><div>
         <p><?= tt_e($fullName) ?> (<?= tt_e($user['email'] ?? '') ?>)</p><p><a href="dangxuat.php">Đăng xuất</a></p>
     </div></div>
-        <?php if ($error !== ''): ?><p class="notice" role="alert"><?= tt_e($error) ?></p><?php endif; ?>
+    <?php if ($error !== ''): ?><p class="notice" role="alert"><?= tt_e($error) ?></p><?php endif; ?>
     <form id="delivery-form" class="checkout-form" action="thanhtoan.php" method="POST">
         <input type="hidden" name="csrf_token" value="<?= tt_e($token) ?>">
         <input type="hidden" name="review_code" id="review-code" value="<?= tt_e($state['code']) ?>">
@@ -229,7 +227,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
         <button id="voucher-apply" type="button" disabled>Sử dụng</button>
         <button id="voucher-remove" type="button" hidden disabled>Gỡ mã</button>
     </div>
-    <p id="voucher-message" class="voucher-message" role="status" aria-live="polite"></p>
+     <p id="voucher-message" class="voucher-message" role="status" aria-live="polite"></p>
     <h2 class="loyal-title">Chương trình khách hàng thân thiết</h2>
     <div id="member-info" class="member-box"></div>
     <div id="voucher-list" class="voucher-list"></div>
@@ -317,4 +315,16 @@ $('voucher-apply').addEventListener('click',()=>voucher('apply',$('voucher-code'
 $('voucher-remove').addEventListener('click',()=>voucher('remove'));
 $('voucher-code').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();voucher('apply',e.target.value);}});
 $('delivery-form').addEventListener('submit',e=>{if(busy||!state.ok||!state.items?.length)e.preventDefault();else{busy=true;controls();}});
-window.addEventListener('pageshow',e=>{if(e.persisted)location.reload();});
+window.addEventListener('pageshow', e => {
+    if (e.persisted) location.reload();
+});
+
+// Khởi tạo và hiển thị thông tin đơn hàng
+render(state);
+
+if (state.ok && state.message) {
+    message(state.message);
+}
+</script>
+</body>
+</html>
