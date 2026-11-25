@@ -1,13 +1,7 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-$chatCustomerName = trim(($_SESSION['user_ho'] ?? '') . ' ' . ($_SESSION['user_name'] ?? ''));
-
-if ($chatCustomerName == '') {
-    $chatCustomerName = 'Khách';
-}
+require_once __DIR__ . '/chat_helpers.php';
+$ttchatIdentity = ttchat_identity();
+$ttchatToken = ttchat_token($ttchatIdentity['key']);
 ?>
 
 <footer class="footer">
@@ -88,9 +82,10 @@ if ($chatCustomerName == '') {
         </div>
     </div>
 
+    <div id="ttchatStatus" role="status" aria-live="polite" style="font-size:12px;color:#9b2525;padding:0 12px;"></div>
     <div class="chat-input-box">
-        <input type="text" id="chatInput" placeholder="Nhập tin nhắn..." onkeypress="handleChatEnter(event)">
-        <button type="button" onclick="sendMessage()">
+        <input type="text" id="chatInput" maxlength="2000" placeholder="Nhập tin nhắn..." onkeypress="handleChatEnter(event)">
+        <button type="button" id="chatSendButton" onclick="sendMessage()">
             <i class="fas fa-paper-plane"></i>
         </button>
     </div>
@@ -226,113 +221,85 @@ if ($chatCustomerName == '') {
 
 <script src="validate.js"></script>
 <script>
-// Nhận tên khách hàng được truyền an toàn từ biến PHP sang JavaScript
-const chatCustomerName = "<?php echo htmlspecialchars($chatCustomerName, ENT_QUOTES); ?>";
-
-// Hàm xử lý ẩn hoặc hiện hộp thoại chat khi bấm vào biểu tượng bong bóng chat
+const ttchatToken = <?php echo json_encode($ttchatToken, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+const ttchatBody = document.getElementById('chatBody');
+const ttchatInitial = ttchatBody.innerHTML; // markup co dinh tu template
+let ttchatSending = false, ttchatVersion = 0, ttchatLastMessages = '', ttchatExpired = false;
+function ttchatStatus(message) { document.getElementById('ttchatStatus').textContent = message; }
 function toggleChatBox() {
-    const box = document.getElementById("chatBox");
-    // Nếu đang hiện (flex) thì ẩn đi (none), và ngược lại
-    box.style.display = box.style.display === "flex" ? "none" : "flex";
-
-    // Nếu hộp chat được mở lên, lập tức tải lại danh sách tin nhắn cũ
-    if (box.style.display === "flex") {
-        loadMessages();
+    const box = document.getElementById('chatBox');
+    box.style.display = box.style.display === 'flex' ? 'none' : 'flex';
+    if (box.style.display === 'flex') loadMessages();
+}
+async function ttchatResponse(response) {
+    if (response.status === 403) {
+        ttchatExpired = true;
+        ttchatBody.innerHTML = ttchatInitial;
+        document.getElementById('chatSendButton').disabled = true;
+        throw new Error('Phiên chat đã thay đổi. Vui lòng tải lại trang.');
     }
+    let data;
+    try { data = await response.json(); } catch (_) { throw new Error('Hệ thống chat tạm thời không khả dụng.'); }
+    if (!response.ok || !data.ok) throw new Error(data.message || 'Không thể xử lý yêu cầu.');
+    return data;
 }
-
-// Hàm xử lý gửi tin nhắn của khách và kích hoạt phản hồi tự động
-function sendMessage() {
-    const input = document.getElementById("chatInput");
-    const text = input.value.trim(); // Lấy nội dung nhập và xóa khoảng trắng thừa
-
-    if (text === "") return; // Nếu ô nhập trống rỗng thì dừng lại không gửi
-
-    // BƯỚC 1: Gửi tin nhắn của người dùng lên server (gọi file chat_send.php với vai trò là 'user')
-    fetch("chat_send.php", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: "message=" + encodeURIComponent(text) +
-              "&sender_type=user" +
-              "&customer_name=" + encodeURIComponent(chatCustomerName)
-    })
-    .then(response => response.text())
-    .then(() => {
-        // Khởi tạo câu trả lời mặc định của hệ thống nếu không khớp từ khóa nào
-        let reply = "TT SHOP đã nhận tin nhắn của bạn ❤️. Nhân viên sẽ hỗ trợ bạn sớm nhất.";
-        const lower = text.toLowerCase(); // Chuyển tin nhắn sang chữ thường để dễ so khớp
-
-        // BƯỚC 2: Bộ lọc từ khóa thông minh để Bot tự động chọn câu trả lời phù hợp
-        if (lower.includes("giao hàng") || lower.includes("ship")) {
-            reply = "Shop giao hàng toàn quốc từ 2 - 5 ngày tuỳ khu vực 🚚";
-        } else if (lower.includes("đổi trả") || lower.includes("hoàn tiền")) {
-            reply = "Shop hỗ trợ đổi trả trong 7 ngày nếu sản phẩm bị lỗi từ nhà sản xuất 🔄";
-        } else if (lower.includes("kiểm tra đơn") || lower.includes("đơn hàng")) {
-            reply = "Bạn vào Tài khoản → Danh sách đơn hàng để kiểm tra trạng thái đơn nhé 📦";
-        } else if (lower.includes("sản phẩm") || lower.includes("bán gì")) {
-            reply = "TT SHOP bán văn phòng phẩm, dụng cụ học tập, balo, sổ tay và máy tính cầm tay 🛍️";
+async function sendMessage() {
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if (!text || ttchatSending || ttchatExpired) return;
+    ttchatSending = true;
+    document.getElementById('chatSendButton').disabled = true;
+    try {
+        await ttchatResponse(await fetch('chat_send.php', {
+            method: 'POST', credentials: 'same-origin', cache: 'no-store',
+            body: new URLSearchParams({message:text, csrf_token:ttchatToken})
+        }));
+        if (input.value.trim() === text) input.value = '';
+        ttchatStatus('');
+        await loadMessages();
+    } catch (error) { ttchatStatus(error.message || 'Không thể gửi tin nhắn.'); }
+    finally { ttchatSending = false; document.getElementById('chatSendButton').disabled = ttchatExpired; }
+}
+async function loadMessages() {
+    if (ttchatExpired) return;
+    const version = ++ttchatVersion;
+    try {
+        const data = await ttchatResponse(await fetch('chat_load.php', {
+            credentials: 'same-origin', cache: 'no-store', headers: {'X-Chat-CSRF': ttchatToken}
+        }));
+        if (version !== ttchatVersion || ttchatExpired) return;
+        const signature = JSON.stringify(data.messages);
+        if (signature === ttchatLastMessages) return;
+        const atBottom = ttchatBody.scrollHeight - ttchatBody.scrollTop - ttchatBody.clientHeight < 60;
+        const first = ttchatLastMessages === '';
+        ttchatBody.innerHTML = ttchatInitial;
+        for (const msg of data.messages) {
+            const bubble = document.createElement('div');
+            bubble.className = msg.sender_type === 'user' ? 'user-message' : 'bot-message';
+            bubble.style.whiteSpace = 'pre-wrap';
+            bubble.style.overflowWrap = 'anywhere';
+            if (msg.sender_type !== 'user') {
+                const label = document.createElement('strong');
+                label.textContent = msg.sender_type === 'bot' ? 'Trợ lý tự động' : 'Nhân viên TT SHOP';
+                label.style.display = 'block'; label.style.fontSize = '12px';
+                bubble.appendChild(label);
+            }
+            bubble.appendChild(document.createTextNode(msg.message));
+            ttchatBody.appendChild(bubble);
         }
-
-        // BƯỚC 3: Gửi câu trả lời tự động này ngược lại hệ thống với vai trò là 'admin' (để lưu vào lịch sử chat)
-        fetch("chat_send.php", {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: "message=" + encodeURIComponent(reply) +
-                  "&sender_type=admin" +
-                  "&customer_name=" + encodeURIComponent(chatCustomerName)
-        })
-        .then(response => response.text())
-        .then(() => {
-            input.value = ""; // Xóa sạch chữ trong ô nhập sau khi gửi xong
-            loadMessages();   // Tải lại khung chat để hiển thị cả tin nhắn vừa gửi và tin nhắn của Bot
-        });
-    });
+        ttchatLastMessages = signature;
+        if (first || atBottom || ttchatSending) ttchatBody.scrollTop = ttchatBody.scrollHeight;
+    } catch (error) { if (version === ttchatVersion) ttchatStatus(error.message || 'Không thể tải tin nhắn.'); }
 }
-
-// Hàm tải toàn bộ tin nhắn từ cơ sở dữ liệu lên khung chat thông qua file chat_load.php
-function loadMessages() {
-    fetch("chat_load.php?customer=" + encodeURIComponent(chatCustomerName))
-        .then(response => response.text())
-        .then(data => {
-            const body = document.getElementById("chatBody");
-
-            // Đổ nội dung lời chào mặc định, các nút câu hỏi nhanh (Quick Reply) kết hợp với dữ liệu lịch sử chat ($data)
-            body.innerHTML = `
-                <div class="bot-message">
-                    Xin chào 👋<br>
-                    TT SHOP có thể hỗ trợ gì cho bạn?
-                </div>
-                <div class="quick-questions">
-                    <button onclick="quickQuestion('shop có giao hàng không')">🚚 Giao hàng</button>
-                    <button onclick="quickQuestion('shop có đổi trả không')">🔄 Đổi trả</button>
-                    <button onclick="quickQuestion('kiểm tra đơn hàng')">📦 Kiểm tra đơn</button>
-                    <button onclick="quickQuestion('shop bán sản phẩm gì')">🛍️ Sản phẩm</button>
-                </div>
-            ` + data;
-
-            // Tự động cuộn khung chat xuống dưới cùng để người dùng luôn nhìn thấy tin nhắn mới nhất
-            body.scrollTop = body.scrollHeight;
-        });
-}
-
-// Hàm xử lý khi click vào các nút câu hỏi nhanh: Điền chữ vào ô nhập rồi tự động kích hoạt hàm gửi
 function quickQuestion(text) {
-    document.getElementById("chatInput").value = text;
+    if (ttchatSending || ttchatExpired) return;
+    document.getElementById('chatInput').value = text;
     sendMessage();
 }
-
-// Hàm lắng nghe phím bấm: Nếu người dùng đang gõ ở ô nhập và nhấn phím "Enter" thì tự động gửi tin luôn
 function handleChatEnter(event) {
-    if (event.key === "Enter") {
-        sendMessage();
-    }
+    if (event.key === 'Enter') { event.preventDefault(); sendMessage(); }
 }
-
-// Đồng hồ chạy ngầm: Cứ mỗi 3000ms (3 giây), nếu hộp chat đang mở thì tự động tải tin nhắn mới một lần (Realtime)
 setInterval(function() {
-    const box = document.getElementById("chatBox");
-    if (box && box.style.display === "flex") {
-        loadMessages();
-    }
+    if (!ttchatSending && !ttchatExpired && document.getElementById('chatBox').style.display === 'flex') loadMessages();
 }, 3000);
 </script>

@@ -1,18 +1,37 @@
 <?php
 include "connect.php";
 
-$id = (int)($_GET['id'] ?? 0);
-
-$stmt = mysqli_prepare($conn, "SELECT * FROM products WHERE id = ?");
-mysqli_stmt_bind_param($stmt, "i", $id);
-mysqli_stmt_execute($stmt);
-
-$result = mysqli_stmt_get_result($stmt);
-$product = mysqli_fetch_assoc($result);
+$rawId = $_GET['id'] ?? '';
+// ID số thuộc products; ID cat_N thuộc category_products.
+// Chỉ chọn tên bảng từ hai giá trị cố định, không lấy trực tiếp từ URL.
+$isCategory = false;
+$productId = 0;
+if (is_string($rawId) && preg_match('/^(cat_)?([1-9][0-9]{0,9})$/D', $rawId, $matches)) {
+    if ((float)$matches[2] <= 2147483647) {
+        $isCategory = $matches[1] === 'cat_';
+        $productId = (int)$matches[2];
+    }
+}
+$product = null;
+if ($productId > 0) {
+    $table = $isCategory ? 'category_products' : 'products';
+    $stmt = mysqli_prepare($conn, "SELECT * FROM $table WHERE id = ?");
+    mysqli_stmt_bind_param($stmt, "i", $productId);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    $product = mysqli_fetch_assoc($result);
+    mysqli_stmt_close($stmt);
+}
 
 if (!$product) {
+    http_response_code(404);
     die("Không tìm thấy sản phẩm.");
 }
+
+$cartId = $isCategory ? 'cat_' . $productId : (string)$productId;
+$imagePath = $isCategory ? (string)$product['image'] : 'images/' . $product['image'];
+$backUrl = $isCategory ? 'category.php?type=' . rawurlencode($product['type_slug']) : 'index.php';
+$backLabel = $isCategory ? 'Quay lại danh mục' : 'Quay lại trang chủ';
 ?>
 
 <!DOCTYPE html>
@@ -112,6 +131,8 @@ if (!$product) {
         .buy {
             background: #00974f;
             color: white;
+            border: 1px solid #00974f;
+            cursor: pointer;
         }
 
         .back {
@@ -130,7 +151,7 @@ if (!$product) {
     <div>
         <img 
             class="product-img" 
-            src="images/<?php echo htmlspecialchars($product['image']); ?>" 
+            src="<?php echo htmlspecialchars($imagePath, ENT_QUOTES, 'UTF-8'); ?>" 
             alt="<?php echo htmlspecialchars($product['name']); ?>"
         >
     </div>
@@ -171,22 +192,20 @@ if (!$product) {
 
         <div class="btn-group">
             <form method="POST" action="add_to_cart.php" class="add-cart-form">
-                <input type="hidden" name="id" value="<?php echo (int)$product['id']; ?>">
-                <input type="hidden" name="name" value="<?php echo htmlspecialchars($product['name']); ?>">
-                <input type="hidden" name="price" value="<?php echo (int)$product['price']; ?>">
-                <input type="hidden" name="old_price" value="<?php echo (int)$product['old_price']; ?>">
-                <input type="hidden" name="img" value="images/<?php echo htmlspecialchars($product['image']); ?>">
+                <input type="hidden" name="id" value="<?php echo htmlspecialchars($cartId, ENT_QUOTES, 'UTF-8'); ?>">
                 <input type="hidden" name="qty" value="1">
-
                 <button type="submit" class="btn cart">🛒 Thêm vào giỏ</button>
             </form>
 
-            <a class="btn buy" href="add_to_cart.php?id=<?php echo (int)$product['id']; ?>&buy_now=1">
-                Mua ngay
-            </a>
+            <form method="POST" action="add_to_cart.php" class="add-cart-form">
+                <input type="hidden" name="id" value="<?php echo htmlspecialchars($cartId, ENT_QUOTES, 'UTF-8'); ?>">
+                <input type="hidden" name="qty" value="1">
+                <input type="hidden" name="buy_now" value="1">
+                <button type="submit" class="btn buy">Mua ngay</button>
+            </form>
         </div>
 
-        <a class="back" href="index.php">← Quay lại trang chủ</a>
+        <a class="back" href="<?php echo htmlspecialchars($backUrl, ENT_QUOTES, 'UTF-8'); ?>">← <?php echo htmlspecialchars($backLabel, ENT_QUOTES, 'UTF-8'); ?></a>
     </div>
 </div>
 
@@ -206,6 +225,10 @@ document.querySelectorAll('.add-cart-form').forEach(function(form) {
         })
         .then(function(data) {
             if (data.status === 'success') {
+                if (data.redirect === 'giohang.php') {
+                    window.location.href = data.redirect;
+                    return;
+                }
                 Swal.fire({
                     icon: 'success',
                     title: 'Thông báo',
@@ -219,6 +242,9 @@ document.querySelectorAll('.add-cart-form').forEach(function(form) {
                     text: data.message || 'Không thể thêm vào giỏ hàng'
                 });
             }
+        })
+        .catch(function() {
+            Swal.fire('Lỗi', 'Không thể kết nối. Vui lòng thử lại.', 'error');
         });
     });
 });

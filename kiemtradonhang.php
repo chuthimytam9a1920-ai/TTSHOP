@@ -3,47 +3,90 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-include "connect.php";
+// Thông tin đơn hàng chỉ được trả về cho tài khoản sở hữu đơn.
+header('Cache-Control: no-store, private, max-age=0');
+header('Pragma: no-cache');
+$lookupUserId = filter_var($_SESSION['user_id'] ?? null, FILTER_VALIDATE_INT, [
+    'options' => ['min_range' => 1]
+]);
+if (($_SESSION['is_login'] ?? false) !== true || $lookupUserId === false) {
+    $_SESSION['login_error'] = 'Vui lòng đăng nhập để kiểm tra đơn hàng của bạn.';
+    header('Location: dangnhap.php', true, 303);
+    exit();
+}
+
+require_once __DIR__ . '/connect.php';
 
 $checkType = $_POST['check_type'] ?? 'phone';
-$keyword   = trim($_POST['keyword'] ?? '');
-$orders    = [];
-$emailError = '';
+$rawKeyword = $_POST['keyword'] ?? '';
+$keyword = is_string($rawKeyword) ? trim($rawKeyword) : '';
+$orders = [];
+$lookupError = '';
+$isPost = ($_SERVER['REQUEST_METHOD'] === 'POST');
+if (!isset($_SESSION['order_lookup_csrf']) || !is_string($_SESSION['order_lookup_csrf'])) {
+    $_SESSION['order_lookup_csrf'] = bin2hex(random_bytes(32));
+}
+$lookupCsrf = $_SESSION['order_lookup_csrf'];
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $keyword !== '') {
-
-    if ($checkType === 'email') {
-        $keyword = strtolower($keyword);
-        if (preg_match('/^(?=[a-z0-9.]*[a-z])(?!\.)(?!.*\.\.)[a-z0-9.]{5,29}[a-z0-9]@gmail\.com$/', $keyword) !== 1) {
-            $emailError = 'Vui lòng nhập Gmail hợp lệ theo định dạng email tài khoản TT SHOP.';
-        } else {
-            $sql = "
-                SELECT *
-                FROM donhang
-                WHERE email = ?
-                ORDER BY id DESC
-            ";
-        }
+if ($isPost) {
+    $token = $_POST['csrf_token'] ?? null;
+    if (!is_string($token) || !hash_equals($lookupCsrf, $token)) {
+        http_response_code(403);
+        $lookupError = 'Phiên kiểm tra không hợp lệ. Vui lòng tải lại trang và thử lại.';
+    } elseif (!in_array($checkType, ['phone', 'email'], true) || !is_string($rawKeyword)) {
+        $lookupError = 'Thông tin kiểm tra không hợp lệ.';
+    } elseif ($keyword === '') {
+        $lookupError = 'Vui lòng nhập thông tin kiểm tra.';
+    } elseif ($checkType === 'email' && (strlen($keyword) > 255 || !filter_var($keyword, FILTER_VALIDATE_EMAIL))) {
+        $lookupError = 'Vui lòng nhập email hợp lệ.';
+    } elseif ($checkType === 'phone' && (strlen($keyword) > 30 || !preg_match('/\A[0-9+(). -]{1,30}\z/', $keyword))) {
+        $lookupError = 'Vui lòng nhập số điện thoại hợp lệ.';
     } else {
-        $sql = "
-            SELECT *
-            FROM donhang
-            WHERE sdt = ?
-            ORDER BY id DESC
-        ";
-    }
+        // Không nhận user_id từ GET/POST. Cả hai truy vấn bắt buộc có user_id từ session.
+        $sql = $checkType === 'email'
+            ? 'SELECT id, ma_don, ho_ten, sdt, email, dia_chi, phuong_xa, quan_huyen, tinh_thanh, phuong_thuc, tong_cong, trang_thai, created_at FROM donhang WHERE user_id = ? AND email = ? ORDER BY id DESC'
+            : 'SELECT id, ma_don, ho_ten, sdt, email, dia_chi, phuong_xa, quan_huyen, tinh_thanh, phuong_thuc, tong_cong, trang_thai, created_at FROM donhang WHERE user_id = ? AND sdt = ? ORDER BY id DESC';
+        try {
+            if ($checkType === 'email') {
+                $keyword = strtolower($keyword);
+            }
+            $stmt = mysqli_prepare($conn, $sql);
+            mysqli_stmt_bind_param($stmt, 'is', $lookupUserId, $keyword);
+            mysqli_stmt_execute($stmt);
+            $result = mysqli_stmt_get_result($stmt);
+            while ($row = mysqli_fetch_assoc($result)) {
+                $orders[] = $row;
+            }
+            mysqli_stmt_close($stmt);
 
-    if ($emailError === '') {
-        $stmt = mysqli_prepare($conn, $sql);
-        mysqli_stmt_bind_param($stmt, "s", $keyword);
-        mysqli_stmt_execute($stmt);
-
-        $result = mysqli_stmt_get_result($stmt);
-
-        while ($row = mysqli_fetch_assoc($result)) {
-            $orders[] = $row;
+            if ($orders) {
+                // Kiểm tra quyền sở hữu cả khi đọc chi tiết sản phẩm của đơn.
+                $stmtItems = mysqli_prepare($conn, 'SELECT ct.hinh_anh, ct.ten_san_pham, ct.so_luong, ct.thanh_tien FROM chitiet_donhang ct INNER JOIN donhang dh ON dh.id = ct.donhang_id WHERE dh.user_id = ? AND dh.id = ? ORDER BY ct.id');
+                foreach ($orders as &$order) {
+                    $lookupOrderId = (int)$order['id'];
+                    mysqli_stmt_bind_param($stmtItems, 'ii', $lookupUserId, $lookupOrderId);
+                    mysqli_stmt_execute($stmtItems);
+                    $itemsResult = mysqli_stmt_get_result($stmtItems);
+                    $order['items'] = [];
+                    while ($item = mysqli_fetch_assoc($itemsResult)) {
+                        $order['items'][] = $item;
+                    }
+                    mysqli_free_result($itemsResult);
+                }
+                unset($order);
+                mysqli_stmt_close($stmtItems);
+            }
+        } catch (Throwable $exception) {
+            unset($order);
+            $orders = [];
+            $lookupError = 'Hệ thống đang bận. Vui lòng thử lại sau.';
+            error_log('TT SHOP order lookup: ' . $exception->getMessage());
+            http_response_code(503);
         }
     }
+}
+if (!in_array($checkType, ['phone', 'email'], true)) {
+    $checkType = 'phone';
 }
 ?>
 
@@ -176,6 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $keyword !== '') {
 
     <div class="order-check-box">
         <form method="POST" class="order-form-card">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($lookupCsrf, ENT_QUOTES, 'UTF-8'); ?>">
 
             <h2>
                 <i class="fas fa-search"></i>
@@ -218,31 +262,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $keyword !== '') {
                 type="<?php echo $checkType === 'email' ? 'email' : 'text'; ?>" 
                 placeholder="<?php echo $checkType === 'email' ? 'email@gmail.com' : '0909 xxx xxx'; ?>"
                 autocomplete="<?php echo $checkType === 'email' ? 'email' : 'tel'; ?>"
-                <?php if ($checkType === 'email') { ?>
-                    pattern="(?=[a-zA-Z0-9.]*[a-zA-Z])(?!\.)(?!.*\.\.)[a-zA-Z0-9.]{5,29}[a-zA-Z0-9]@gmail\.com"
-                    title="Email phải là Gmail hợp lệ; phần trước @ dài 6–30 ký tự, có ít nhất một chữ cái và không có dấu chấm ở đầu/cuối hoặc hai dấu chấm liên tiếp."
-                    maxlength="40"
-                <?php } ?>
+                maxlength="<?php echo $checkType === 'email' ? 255 : 30; ?>"
                 value="<?php echo htmlspecialchars($keyword); ?>"
                 required
             >
-            <?php if ($emailError !== '') { ?>
-                <p class="error-msg"><?php echo htmlspecialchars($emailError); ?></p>
+            <?php if ($lookupError !== '') { ?>
+                <p class="error-msg"><?php echo htmlspecialchars($lookupError); ?></p>
             <?php } ?>
 
-            <div class="captcha-box">
-                <div class="captcha-left">
-                    <label style="display:flex;align-items:center;gap:10px;margin:0;">
-                        <input type="checkbox" required style="width:24px;height:24px;">
-                        <span>Tôi không phải là người máy</span>
-                    </label>
-                </div>
-
-                <div class="captcha-right">
-                    <i class="fas fa-sync-alt"></i>
-                    <small>reCAPTCHA</small>
-                </div>
-            </div>
+            <p class="help-text" style="margin: 12px 0;">
+                <i class="fas fa-lock" aria-hidden="true"></i>
+                Bạn chỉ có thể tra cứu đơn hàng thuộc tài khoản đang đăng nhập.
+                <a href="donhang.php" style="color:inherit;text-decoration:underline;">Xem tất cả đơn hàng của tôi</a>.
+            </p>
 
             <p class="help-text">
                 Nếu quý khách có bất kỳ thắc mắc nào, xin vui lòng gọi
@@ -256,7 +288,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $keyword !== '') {
         </form>
     </div>
 
-    <?php if ($_SERVER['REQUEST_METHOD'] === 'POST') { ?>
+    <?php if ($isPost && $lookupError === '') { ?>
 
         <div class="check-result">
 
@@ -265,7 +297,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $keyword !== '') {
             <?php if (empty($orders)) { ?>
 
                 <div class="empty-check-result">
-                    Không tìm thấy đơn hàng nào.
+                    Không tìm thấy đơn hàng phù hợp trong tài khoản của bạn.
                 </div>
 
             <?php } else { ?>
@@ -335,30 +367,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $keyword !== '') {
 
                         <div class="checked-products">
 
-                            <?php
-                            $sqlItems = "
-                                SELECT *
-                                FROM chitiet_donhang
-                                WHERE donhang_id = ?
-                            ";
-
-                            $stmtItems = mysqli_prepare($conn, $sqlItems);
-                            mysqli_stmt_bind_param($stmtItems, "i", $order['id']);
-                            mysqli_stmt_execute($stmtItems);
-                            $resultItems = mysqli_stmt_get_result($stmtItems);
-                            ?>
-
-                            <?php if (mysqli_num_rows($resultItems) == 0) { ?>
+                            <?php if (empty($order['items'])) { ?>
 
                                 <p>Đơn hàng này chưa có sản phẩm.</p>
 
                             <?php } else { ?>
 
-                                <?php while ($item = mysqli_fetch_assoc($resultItems)) { ?>
+                                <?php foreach ($order['items'] as $item) { ?>
 
                                     <div class="checked-product-item">
 
-                                        <img src="<?php echo htmlspecialchars($item['hinh_anh']); ?>" alt="">
+                                        <img src="<?php echo htmlspecialchars($item['hinh_anh'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" alt="">
 
                                         <div>
                                             <div class="checked-product-name">
@@ -407,18 +426,14 @@ function changeCheckType(type) {
         input.type = "email";
         input.placeholder = "email@gmail.com";
         input.autocomplete = "email";
-            input.pattern = "(?=[a-zA-Z0-9.]*[a-zA-Z])(?!\\.)(?!.*\\.\\.)[a-zA-Z0-9.]{5,29}[a-zA-Z0-9]@gmail\\.com";
-            input.title = "Email phải là Gmail hợp lệ; phần trước @ dài 6–30 ký tự, có ít nhất một chữ cái và không có dấu chấm ở đầu/cuối hoặc hai dấu chấm liên tiếp.";
-            input.maxLength = 40;
+        input.maxLength = 255;
         input.value = "";
     } else {
         label.innerText = "Số điện thoại:";
         input.type = "text";
         input.placeholder = "0909 xxx xxx";
         input.autocomplete = "tel";
-            input.removeAttribute("pattern");
-            input.removeAttribute("title");
-            input.removeAttribute("maxlength");
+        input.maxLength = 30;
         input.value = "";
     }
 }

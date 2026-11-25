@@ -25,6 +25,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $admin = mysqli_fetch_assoc($result);
 
     if ($admin && password_verify($password, $admin['password'])) {
+        session_regenerate_id(true);
+        unset($_SESSION['ttchat_csrf']['admin']);
         $_SESSION['admin_login'] = true;
         $_SESSION['admin_id'] = $admin['id'];
         $_SESSION['admin_name'] = $admin['ho_ten'];

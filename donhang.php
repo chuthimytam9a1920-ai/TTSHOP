@@ -4,21 +4,20 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Kết nối tới cơ sở dữ liệu
-include "connect.php";
-
 // Kiểm tra bảo mật: Nếu khách chưa đăng nhập, lập tức đá về trang đăng nhập
-if (!isset($_SESSION['is_login']) || $_SESSION['is_login'] !== true) {
+if (($_SESSION['is_login'] ?? false) !== true || (int)($_SESSION['user_id'] ?? 0) <= 0) {
     header("Location: dangnhap.php");
     exit();
 }
+
+require_once __DIR__ . "/connect.php";
 
 // Lấy ID của người dùng đang đăng nhập (ép kiểu về số nguyên để an toàn dữ liệu)
 $user_id = (int)$_SESSION['user_id'];
 
 // Chuẩn bị câu lệnh SQL lấy toàn bộ đơn hàng của user này, sắp xếp đơn hàng mới nhất lên đầu (ORDER BY id DESC)
 $sql = "
-    SELECT *
+    SELECT id, ma_don, created_at, tong_cong, phuong_thuc, trang_thai
     FROM donhang
     WHERE user_id = ?
     ORDER BY id DESC
@@ -45,6 +44,7 @@ $result = mysqli_stmt_get_result($stmt);
 
     <?php } else { ?>
 
+        <div class="order-table-scroll">
         <table class="order-table">
             <thead>
                 <tr>
@@ -56,18 +56,21 @@ $result = mysqli_stmt_get_result($stmt);
                     <th>Chi tiết</th>
                 </tr>
             </thead>
-
-            <tbody>
+                        <tbody>
                 <?php while ($row = mysqli_fetch_assoc($result)) { ?>
                     <tr>
                         <td>
                             <strong>
-                                <?php echo htmlspecialchars($row['ma_don']); ?>
+                                <?php echo htmlspecialchars($row['ma_don'], ENT_QUOTES, 'UTF-8'); ?>
                             </strong>
                         </td>
 
                         <td>
-                            <?php echo date("d/m/Y H:i", strtotime($row['ngay_dat'])); ?>
+                            <?php
+                            $ngayDat = $row['created_at'] ?? '';
+                            $timestamp = $ngayDat !== '' ? strtotime($ngayDat) : false;
+                            echo $timestamp !== false ? date("d/m/Y H:i", $timestamp) : '—';
+                            ?>
                         </td>
 
                         <td class="price">
@@ -75,17 +78,17 @@ $result = mysqli_stmt_get_result($stmt);
                         </td>
 
                         <td>
-                            <?php echo htmlspecialchars($row['phuong_thuc']); ?>
+                            <?php echo htmlspecialchars($row['phuong_thuc'], ENT_QUOTES, 'UTF-8'); ?>
                         </td>
 
                         <td>
                             <span class="status">
-                                <?php echo htmlspecialchars($row['trang_thai'] ?? 'Chờ xác nhận'); ?>
+                                <?php echo htmlspecialchars($row['trang_thai'] ?? 'Chờ xử lý', ENT_QUOTES, 'UTF-8'); ?>
                             </span>
                         </td>
 
                         <td>
-                            <a class="detail-btn" href="chitietdonhang.php?id=<?php echo $row['id']; ?>">
+                            <a class="detail-btn" href="chitietdonhang.php?id=<?php echo (int)$row['id']; ?>">
                                 Xem chi tiết
                             </a>
                         </td>
@@ -93,9 +96,11 @@ $result = mysqli_stmt_get_result($stmt);
                 <?php } ?>
             </tbody>
         </table>
+        </div>
 
     <?php } ?>
 </div>
+<?php mysqli_stmt_close($stmt); ?>
 
 <style>
 .order-box {
@@ -104,7 +109,6 @@ $result = mysqli_stmt_get_result($stmt);
     padding: 35px;
     min-height: 420px;
 }
-
 .order-box h1 {
     color: #ff9500;
     font-size: 36px;
@@ -137,7 +141,13 @@ $result = mysqli_stmt_get_result($stmt);
     font-weight: bold;
 }
 
+.order-box .order-table-scroll {
+    overflow-x: auto;
+    border-radius: 12px;
+}
+
 .order-table {
+    min-width: 800px;
     width: 100%;
     border-collapse: collapse;
     background: white;
@@ -164,7 +174,9 @@ $result = mysqli_stmt_get_result($stmt);
     font-weight: bold;
 }
 
-.status {
+.order-box .status {
+    display: inline-block;
+    white-space: nowrap;
     background: #fff2cc;
     color: #d48806;
     padding: 7px 14px;
@@ -172,7 +184,9 @@ $result = mysqli_stmt_get_result($stmt);
     font-weight: bold;
 }
 
-.detail-btn {
+.order-box .detail-btn {
+    display: inline-block;
+    white-space: nowrap;
     background: #ffd84d;
     color: #3155ff;
     padding: 9px 16px;
@@ -181,7 +195,7 @@ $result = mysqli_stmt_get_result($stmt);
     font-weight: bold;
 }
 
-.detail-btn:hover {
+.order-box .detail-btn:hover {
     background: #ff9500;
     color: white;
 }
