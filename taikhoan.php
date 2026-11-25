@@ -5,6 +5,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 include "connect.php";
 require_once __DIR__ . '/csrf.php';
+require_once __DIR__ . '/voucher_helpers.php';
 $csrfToken = csrf_token();
 $accountFieldErrors = $_SESSION['account_field_errors'] ?? array();
 unset($_SESSION['account_field_errors']);
@@ -35,6 +36,23 @@ mysqli_stmt_execute($stmtUser);
 
 $resultUser = mysqli_stmt_get_result($stmtUser);
 $user = mysqli_fetch_assoc($resultUser);
+
+/* Không sử dụng phiên đăng nhập cũ nếu ID đã thuộc tài khoản khác. */
+if (!$user || (isset($_SESSION['user_email']) &&
+    strcasecmp((string)$_SESSION['user_email'], (string)$user['email']) !== 0)) {
+    unset($_SESSION['is_login'], $_SESSION['user_id'], $_SESSION['user_email'],
+          $_SESSION['voucher_code'], $_SESSION['voucher_user_id'],
+          $_SESSION['checkout_info'], $_SESSION['checkout_review']);
+    header('Location: dangnhap.php');
+    exit();
+}
+
+/* Thông báo hủy đơn chỉ hiển thị cho đúng tài khoản. */
+$cancelFlash = $_SESSION['customer_cancel_flash'] ?? null;
+unset($_SESSION['customer_cancel_flash']);
+if (!is_array($cancelFlash) || ($cancelFlash['user_id'] ?? null) !== $user_id) {
+    $cancelFlash = null;
+}
 
 /* Lưu session */
 if ($user) {
@@ -143,17 +161,27 @@ $trangThaiHopLe = [
 
 $locTrangThai = $_GET['trang_thai'] ?? '';
 
-if (!in_array($locTrangThai, $trangThaiHopLe)) {
+if ($locTrangThai === 'Đã hủy') {
+    $locTrangThai = 'Đã huỷ';
+}
+if (!is_string($locTrangThai) || !in_array($locTrangThai, $trangThaiHopLe, true)) {
     $locTrangThai = '';
 }
 
 /* Nếu đang lọc đơn hàng thì tự mở tab đơn hàng */
-$currentTab = ($locTrangThai != '' || ($_GET['tab'] ?? '') === 'donhang') ? 'donhang' : 'tongquan';
+$requestedTab = $_GET['tab'] ?? '';
+$currentTab = $locTrangThai !== '' || $requestedTab === 'donhang'
+    ? 'donhang' : ($requestedTab === 'thanhvien' ? 'thanhvien' : 'tongquan');
 
 /* Lấy danh sách đơn hàng */
 $orderList = [];
 
-if ($locTrangThai != '') {
+if ($locTrangThai === 'Đã huỷ') {
+    $sqlOrders = "SELECT * FROM donhang WHERE user_id = ?
+        AND trang_thai IN ('Đã huỷ', 'Đã hủy') ORDER BY id DESC";
+    $stmtOrders = mysqli_prepare($conn, $sqlOrders);
+    mysqli_stmt_bind_param($stmtOrders, "i", $user_id);
+} elseif ($locTrangThai != '') {
     $sqlOrders = "
         SELECT *
         FROM donhang
@@ -184,50 +212,122 @@ if ($resultOrders) {
         $orderList[] = $row;
     }
 }
-$sqlMember = "
-    SELECT 
-        COUNT(*) AS so_lan_mua,
-        COALESCE(SUM(tong_cong), 0) AS tong_chi_tieu
-    FROM donhang
-    WHERE user_id = ?
-    AND trang_thai = 'Đã giao'
-";
-
-$stmtMember = mysqli_prepare($conn, $sqlMember);
-mysqli_stmt_bind_param($stmtMember, "i", $user_id);
-mysqli_stmt_execute($stmtMember);
-
-$resultMember = mysqli_stmt_get_result($stmtMember);
-$member = mysqli_fetch_assoc($resultMember);
-
-$soLanMua = (int)($member['so_lan_mua'] ?? 0);
-$tongChiTieu = (int)($member['tong_chi_tieu'] ?? 0);
-
-if ($soLanMua > 20 || $tongChiTieu >= 6000000) {
-    $hangKhach = "Diamond";
-    $hangTiepTheo = "Đã đạt hạng cao nhất";
-    $diemCanLenHang = 0;
-} elseif ($soLanMua >= 11 || $tongChiTieu >= 3000000) {
-    $hangKhach = "Platinum";
-    $hangTiepTheo = "Diamond";
-    $diemCanLenHang = 6000000 - $tongChiTieu;
-} elseif ($soLanMua >= 6 || $tongChiTieu >= 1500000) {
-    $hangKhach = "Gold";
-    $hangTiepTheo = "Platinum";
-    $diemCanLenHang = 3000000 - $tongChiTieu;
-} elseif ($soLanMua >= 3 || $tongChiTieu >= 500000) {
-    $hangKhach = "Silver";
-    $hangTiepTheo = "Gold";
-    $diemCanLenHang = 1500000 - $tongChiTieu;
-} else {
-    $hangKhach = "Member";
-    $hangTiepTheo = "Silver";
-    $diemCanLenHang = 500000 - $tongChiTieu;
+/* Chương trình thành viên: dùng cùng hàm với giỏ hàng và thanh toán. */
+function tk_h($value): string {
+    return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+function tk_money($value): string {
+    return number_format((int)$value, 0, ',', '.') . 'đ';
+}
+function tk_date($value): string {
+    $time = $value ? strtotime((string)$value) : false;
+    return $time === false ? '—' : date('d/m/Y H:i', $time);
 }
 
-if ($diemCanLenHang < 0) {
-    $diemCanLenHang = 0;
+$member = null;
+$memberError = '';
+$voucherError = '';
+$historyError = '';
+$wallet = [];
+$benefits = array_fill_keys(array_keys(membership_rules()), []);
+$history = [];
+$historyCount = 0;
+$historyPage = filter_var($_GET['voucher_page'] ?? 1, FILTER_VALIDATE_INT,
+    ['options' => ['min_range' => 1, 'max_range' => 1000000]]) ?: 1;
+$historySize = 10;
+$historyPages = 1;
+$saved = 0;
+$pendingSaved = 0;
+$deliveredVoucherOrders = 0;
+$progressOrders = 0;
+$progressSpend = 0;
+$rules = membership_rules();
+
+try {
+    $member = membership_get($conn, $user_id);
+    if ($member['next_tier'] === null) {
+        $progressOrders = $progressSpend = 100;
+    } else {
+        $nextRule = $rules[$member['next_tier']];
+        $progressOrders = min(100, (int)floor(100 * $member['orders'] / $nextRule['orders']));
+        $progressSpend = min(100, (int)floor(100 * $member['spend'] / $nextRule['spend']));
+    }
+} catch (Throwable $e) {
+    error_log('TT SHOP membership account: ' . $e->getMessage());
+    $memberError = 'Chưa thể tải thông tin thành viên. Vui lòng thử lại sau.';
 }
+
+/* Kho voucher không giả định giỏ hàng đã đủ tiền.
+   Dùng mức tối thiểu của mỗi mã để kiểm tra hạng, thời hạn và lượt còn lại;
+   khi thanh toán, hệ thống sẽ kiểm tra giá trị giỏ hàng thực tế. */
+if ($member !== null) {
+    try {
+        $result = $conn->query("SELECT m.*, NOW() AS now_db FROM magiamgia m
+                                WHERE trang_thai = 1 ORDER BY hang_toi_thieu, id");
+        if (!$result) throw new RuntimeException('Không thể đọc kho voucher.');
+        while ($v = $result->fetch_assoc()) {
+            $testSubtotal = max(1, (int)$v['don_toi_thieu']);
+            $check = voucher_evaluate($conn, $v, $user_id, $member['tier'], $testSubtotal, 0);
+            $wallet[] = ['voucher' => $v, 'ok' => $check['ok'], 'message' => $check['message']];
+            // Quyền lợi theo từng hạng, lấy từ chương trình còn hiệu lực trong SQL.
+            $required = $v['hang_toi_thieu'];
+            if (isset($benefits[$required]) &&
+                voucher_rule_error($v, $required, $testSubtotal, $v['now_db']) === '') {
+                $benefits[$required][] = $v['ma_code'] . ' – Giảm ' . (int)$v['phan_tram_giam'] . '%'
+                    . ((int)$v['mien_phi_van_chuyen'] === 1 ? ' + Freeship' : '')
+                    . ', đơn từ ' . tk_money($v['don_toi_thieu'])
+                    . ', tối đa ' . tk_money($v['giam_toi_da']);
+            }
+        }
+        $result->free();
+    } catch (Throwable $e) {
+        error_log('TT SHOP voucher wallet: ' . $e->getMessage());
+        $wallet = [];
+        $benefits = array_fill_keys(array_keys($rules), []);
+        $voucherError = 'Chưa thể tải kho mã giảm giá. Vui lòng thử lại sau.';
+    }
+}
+
+/* Lịch sử voucher: chỉ đọc đơn của tài khoản đang đăng nhập.
+   Tiết kiệm thực tế = giảm sản phẩm + giảm vận chuyển của đơn Đã giao.
+   Đơn đã hủy vẫn hiển thị lịch sử nhưng không cộng vào tổng tiết kiệm. */
+try {
+    $stmt = $conn->prepare("SELECT COUNT(*) AS total,
+        COALESCE(SUM(CASE WHEN d.trang_thai = 'Đã giao'
+            THEN l.tien_giam_gia + l.tien_giam_van_chuyen ELSE 0 END), 0) AS saved,
+        COALESCE(SUM(CASE WHEN d.trang_thai IN ('Chờ xử lý','Chờ lấy hàng','Đang vận chuyển')
+            THEN l.tien_giam_gia + l.tien_giam_van_chuyen ELSE 0 END), 0) AS pending_saved,
+        COALESCE(SUM(CASE WHEN d.trang_thai = 'Đã giao' THEN 1 ELSE 0 END), 0) AS delivered_count
+        FROM lichsu_magiamgia l JOIN donhang d ON d.id = l.donhang_id
+        WHERE l.user_id = ? AND d.user_id = ?");
+    if (!$stmt) throw new RuntimeException('Không thể đọc tổng tiết kiệm.');
+    $stmt->bind_param('ii', $user_id, $user_id);
+    if (!$stmt->execute()) throw new RuntimeException('Không thể đọc tổng tiết kiệm.');
+    $stats = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    $historyCount = (int)$stats['total'];
+    $saved = (int)$stats['saved'];
+    $pendingSaved = (int)$stats['pending_saved'];
+    $deliveredVoucherOrders = (int)$stats['delivered_count'];
+    $historyPages = max(1, (int)ceil($historyCount / $historySize));
+    $historyPage = min($historyPage, $historyPages);
+    $offset = ($historyPage - 1) * $historySize;
+    $stmt = $conn->prepare("SELECT l.ma_code, l.tien_giam_gia, l.tien_giam_van_chuyen,
+        l.created_at, d.id AS donhang_id, d.ma_don, d.trang_thai, d.hang_thanh_vien
+        FROM lichsu_magiamgia l JOIN donhang d ON d.id = l.donhang_id
+        WHERE l.user_id = ? AND d.user_id = ?
+        ORDER BY l.created_at DESC, l.id DESC LIMIT ? OFFSET ?");
+    if (!$stmt) throw new RuntimeException('Không thể đọc lịch sử voucher.');
+    $stmt->bind_param('iiii', $user_id, $user_id, $historySize, $offset);
+    if (!$stmt->execute()) throw new RuntimeException('Không thể đọc lịch sử voucher.');
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) $history[] = $row;
+    $stmt->close();
+} catch (Throwable $e) {
+    error_log('TT SHOP voucher history: ' . $e->getMessage());
+    $historyError = 'Chưa thể tải lịch sử và tổng tiết kiệm. Vui lòng thử lại sau.';
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="vi">
@@ -353,10 +453,48 @@ if ($diemCanLenHang < 0) {
     white-space: nowrap;
 }
 
+.cancel-order-form { margin:0; }
+.cancel-order-btn { border:0; cursor:pointer; font:inherit; font-weight:bold; }
+.cancel-order-btn:disabled { opacity:.65; cursor:not-allowed; }
+.cancel-order-notice { padding:12px 16px; margin:0 0 16px; border-radius:8px; background:#fff1f1; color:#a12020; }
+.cancel-order-notice.ok { background:#e9f7ef; color:#137a43; }
 .cancel-order-btn:hover {
     background: #d9363e;
     color: white;
 }
+
+        /* Bổ sung chương trình thành viên - không thay đổi CSS các tab cũ. */
+        #thanhvien .tk-stat-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:24px 0}
+        #thanhvien .tk-stat {padding:15px;background:#f4faf7;border:1px solid #d7eade;border-radius:10px;overflow-wrap:anywhere}
+        #thanhvien .tk-stat small {display:block;color:#555;margin-bottom:8px}
+        #thanhvien .tk-stat strong {font-size:22px;color:#008f4c}
+        #thanhvien .tk-progress {margin:20px 0;padding:18px;background:#f7f7f7;border-radius:12px}
+        #thanhvien .tk-progress label {display:block;margin:12px 0 6px;font-size:15px}
+        #thanhvien .tk-track {height:10px;background:#dedede;border-radius:10px;overflow:hidden}
+        #thanhvien .tk-track span {display:block;height:100%;background:#10a66c;border-radius:10px}
+        #thanhvien .tk-note {color:#666;font-size:14px;line-height:1.6;margin:10px 0}
+        #thanhvien .tk-error {color:#a12020;background:#fff2f2;padding:12px;border-radius:8px}
+        #thanhvien .tk-subtitle {font-size:22px;color:#ff9800;margin:30px 0 14px}
+        #thanhvien .tk-wallet {display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+        #thanhvien .tk-voucher {border:1px dashed #9dcdb3;border-radius:10px;padding:15px;min-width:0;overflow-wrap:anywhere}
+        #thanhvien .tk-voucher.locked {border-color:#ccc;background:#fafafa}
+        #thanhvien .tk-voucher h4 {margin:0 0 8px;font-size:17px;color:#222}
+        #thanhvien .tk-voucher p {margin:6px 0;font-size:14px;line-height:1.5}
+        #thanhvien .tk-eligible {color:#008f4c;font-weight:700}
+        #thanhvien .tk-unavailable {color:#a12020}
+        #thanhvien .tk-actions {display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+        #thanhvien .tk-action {display:inline-block;border:1px solid #008f4c;color:#008f4c;background:#fff;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;text-decoration:none}
+        #thanhvien .tk-table-wrap {overflow-x:auto}
+        #thanhvien .tk-history {border-collapse:collapse;width:100%;font-size:14px;min-width:640px}
+        #thanhvien .tk-history th,#thanhvien .tk-history td {text-align:left;padding:12px 8px;border-bottom:1px solid #e4e4e4;overflow-wrap:anywhere}
+        #thanhvien .tk-history th {background:#f5f5f5}
+        #thanhvien .tk-pages {display:flex;align-items:center;justify-content:center;gap:12px;margin-top:15px;flex-wrap:wrap}
+        #thanhvien .level {border:0;background:transparent;min-width:80px}
+        #thanhvien .level.active {background:#fff}
+        #thanhvien .tk-level-copy {font-size:15px;line-height:1.6}
+        #thanhvien .tk-current {color:#008f4c;font-size:12px!important}
+        .tk-order-voucher {color:#008f4c}
+        @media(max-width:600px){#thanhvien .member-wrapper{padding:12px}#thanhvien .member-box{padding:16px}#thanhvien .member-info{padding-left:0}#thanhvien .member-levels{border-radius:16px;padding:10px}#thanhvien .member-detail{padding:16px}}
     </style>
 </head>
 
@@ -404,7 +542,7 @@ if ($diemCanLenHang < 0) {
                     <i class="fas fa-user-edit"></i> Thông tin tài khoản
                 </li>
 
-                <li data-tab="thanhvien" onclick="showTab('thanhvien', this)">
+                <li class="<?= $currentTab === 'thanhvien' ? 'active' : '' ?>" data-tab="thanhvien" onclick="showTab('thanhvien', this)">
                     <i class="fas fa-award"></i> Chương trình thành viên
                 </li>
 
@@ -517,13 +655,13 @@ if ($diemCanLenHang < 0) {
                     <div class="dashboard-card card-red">
                         <div class="card-top">
                             <div class="card-text">
-                                <p>Chương trình khuyến mãi đang diễn ra!</p>
+                                <p>Khám phá ưu đãi dành cho thành viên!</p>
                             </div>
                             <img src="./imagescategory/Screenshot 2026-05-07 143753.png" class="mascot-img" alt="mascot">
                         </div>
 
-                        <button class="card-btn" onclick="window.location.href='index.php'">
-                            Mua sắm ngay
+                        <button class="card-btn" onclick="goToTab('thanhvien')">
+                            Xem ưu đãi
                         </button>
 
                         <div class="card-bottom">
@@ -585,87 +723,140 @@ if ($diemCanLenHang < 0) {
             </div>
 
             <!-- THÀNH VIÊN -->
-            <div id="thanhvien" class="tab-content">
-
+            <div id="thanhvien" class="tab-content <?= $currentTab === 'thanhvien' ? 'active' : '' ?>">
                 <div class="member-wrapper">
-
                     <h2 class="member-title">CHƯƠNG TRÌNH THÀNH VIÊN</h2>
-
                     <div class="member-box">
-
+                        <?php if ($memberError !== ''): ?>
+                            <p class="tk-error"><?= tk_h($memberError) ?></p>
+                        <?php else: ?>
                         <div class="member-top">
-
-                            <div class="member-badge">
-                                <img src="images/member.png" alt="">
-                            </div>
-
+                            <div class="member-badge"><img src="images/member.png" alt="Thành viên TT SHOP"></div>
                             <div class="member-info">
-<p>Tổng chi tiêu tích lũy: 
-    <span><?php echo number_format($tongChiTieu, 0, ',', '.'); ?>đ</span>
-</p>
-
-<p>Hạng thành viên hiện tại: 
-    <span><?php echo $hangKhach; ?></span>
-</p>
-
-<p>Điểm thành viên khả dụng: 
-    <span><?php echo number_format($tongChiTieu, 0, ',', '.'); ?></span>
-</p>
-
-<p>Điểm cần để lên hạng: 
-    <span><?php echo number_format($diemCanLenHang, 0, ',', '.'); ?></span>
-</p>
-
-<p>Hạng tiếp theo: 
-    <span><?php echo $hangTiepTheo; ?></span>
-</p>
-                                <p class="member-more">
-                                    Xem thêm thông tin Điểm thành viên và Hạng thành viên
-                                    <a href="#">tại đây</a>
-                                </p>
-
+                                <p>Tổng chi tiêu tích lũy: <span><?= tk_money($member['spend']) ?></span></p>
+                                <p>Hạng thành viên hiện tại: <span><?= tk_h($member['tier']) ?></span></p>
+                                <p>Số đơn đã giao: <span><?= (int)$member['orders'] ?></span></p>
+                                <p>Hạng tiếp theo: <span><?= tk_h($member['next_tier'] ?? 'Đã đạt hạng cao nhất') ?></span></p>
+                                <p class="member-more">Xem thêm thông tin hạng thành viên <a href="#member-detail-box">tại đây</a></p>
                             </div>
-
                         </div>
+                        <div class="tk-progress">
+                            <?php if ($member['next_tier'] !== null): ?>
+                                <strong>Tiến độ lên hạng <?= tk_h($member['next_tier']) ?></strong>
+                                <label>Chi tiêu: <?= tk_money($member['spend']) ?> / <?= tk_money($rules[$member['next_tier']]['spend']) ?> (<?= $progressSpend ?>%)</label>
+                                <div class="tk-track" role="progressbar" aria-label="Tiến độ chi tiêu" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?= $progressSpend ?>"><span style="width:<?= $progressSpend ?>%"></span></div>
+                                <label>Đơn đã giao: <?= (int)$member['orders'] ?> / <?= (int)$rules[$member['next_tier']]['orders'] ?> (<?= $progressOrders ?>%)</label>
+                                <div class="tk-track" role="progressbar" aria-label="Tiến độ số đơn" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?= $progressOrders ?>"><span style="width:<?= $progressOrders ?>%"></span></div>
+                                <p class="tk-note">Cần chi tiêu thêm <b><?= tk_money($member['spend_needed']) ?></b> hoặc hoàn tất thêm <b><?= (int)$member['orders_needed'] ?> đơn đã giao</b> để nâng hạng. Chỉ cần đạt một trong hai điều kiện.</p>
+                            <?php else: ?>
+                                <strong class="tk-eligible">Bạn đã đạt hạng Diamond – hạng cao nhất.</strong>
+                                <div class="tk-track" style="margin-top:12px"><span style="width:100%"></span></div>
+                            <?php endif; ?>
+                            <p class="tk-note">Chi tiêu được tính từ tổng thanh toán của đơn đã giao. Hiện chưa có chức năng đổi điểm lấy voucher.</p>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if ($historyError === ''): ?>
+                        <div class="tk-stat-grid">
+                            <div class="tk-stat"><small>Đã tiết kiệm (đơn đã giao)</small><strong><?= tk_money($saved) ?></strong></div>
+                            <div class="tk-stat"><small>Tiết kiệm dự kiến (đơn chưa giao)</small><strong><?= tk_money($pendingSaved) ?></strong></div>
+                            <div class="tk-stat"><small>Đơn đã giao có voucher</small><strong><?= $deliveredVoucherOrders ?></strong></div>
+                        </div>
+                        <?php endif; ?>
 
                         <div class="member-btn-wrap">
-                            <button class="member-btn">NÂNG CẤP TÀI KHOẢN ƯU TIÊN</button>
+                            <button type="button" class="member-btn">NÂNG CẤP TÀI KHOẢN ƯU TIÊN</button>
                         </div>
 
-                        <div class="member-levels">
-
-                            <div class="level active" onclick="showMemberLevel('Member', '0đ - 499.999đ', this)">
-                                <img src="imagescategory/ttshop.jpg">
-                                <span>Member</span>
-                            </div>
-
-                            <div class="level" onclick="showMemberLevel('Silver', '500.000đ - 1.499.000đ', this)">
-                                <img src="imagescategory/ttshop.jpg">
-                                <span>Silver</span>
-                            </div>
-
-                            <div class="level" onclick="showMemberLevel('Gold', '1.500.000đ - 2.999.999đ', this)">
-                                <img src="imagescategory/ttshop.jpg">
-                                <span>Gold</span>
-                            </div>
-
-                            <div class="level" onclick="showMemberLevel('Platinum', '3.000.000đ - 5.999.999đ', this)">
-                                <img src="imagescategory/ttshop.jpg">
-                                <span>Platinum</span>
-                            </div>
-
-                            <div class="level" onclick="showMemberLevel('Diamond', '6.000.000đ trở lên', this)">
-                                <img src="imagescategory/ttshop.jpg">
-                                <span>Diamond</span>
-                            </div>
-
+                        <?php $selectedTier = $member['tier'] ?? 'Member'; ?>
+                        <div class="member-levels" aria-label="Xem quyền lợi từng hạng">
+                            <?php foreach ($rules as $tier => $rule): ?>
+                                <button type="button" class="level <?= $tier === $selectedTier ? 'active' : '' ?>" data-tier="<?= tk_h($tier) ?>" aria-pressed="<?= $tier === $selectedTier ? 'true' : 'false' ?>">
+                                    <img src="imagescategory/ttshop.jpg" alt="">
+                                    <span><?= tk_h($tier) ?></span>
+                                    <?php if ($member !== null && $tier === $member['tier']): ?><span class="tk-current">Hạng hiện tại</span><?php endif; ?>
+                                </button>
+                            <?php endforeach; ?>
                         </div>
-
                         <div class="member-detail" id="member-detail-box">
-                            <h3>Chi tiết hạng Member</h3>
-                            <p>Chi tiêu tích lũy từ <b>0đ - 499.999đ</b></p>
+                            <h3 id="tk-level-title">Chi tiết hạng <?= tk_h($selectedTier) ?></h3>
+                            <p id="tk-level-condition" class="tk-level-copy"><?= $selectedTier === 'Member' ? 'Hạng mặc định khi đăng ký tài khoản.' : 'Từ ' . tk_money($rules[$selectedTier]['spend']) . ' hoặc ' . (int)$rules[$selectedTier]['orders'] . ' đơn đã giao.' ?></p>
+                            <ul id="tk-level-benefits" style="margin-top:16px">
+                                <?php if ($voucherError !== '' || $member === null): ?>
+                                    <li>Chưa thể tải quyền lợi từ database.</li>
+                                <?php elseif (!$benefits[$selectedTier]): ?>
+                                    <li>Hiện chưa có mã đang hiệu lực riêng cho hạng này.</li>
+                                <?php else: foreach ($benefits[$selectedTier] as $benefit): ?>
+                                    <li><?= tk_h($benefit) ?></li>
+                                <?php endforeach; endif; ?>
+                            </ul>
+                            <p class="tk-note" style="font-size:14px">Được sử dụng mã của hạng hiện tại hoặc hạng thấp hơn nếu đủ các điều kiện của mã. Mỗi đơn chỉ dùng một mã.</p>
                         </div>
 
+                        <h3 class="tk-subtitle" id="tk-wallet-title"><i class="fas fa-ticket-alt"></i> Kho mã giảm giá thành viên</h3>
+                        <p class="tk-note">Sao chép mã rồi áp dụng tại giỏ hàng. Điều kiện giá trị đơn hàng sẽ được kiểm tra lại khi sử dụng.</p>
+                        <?php if ($voucherError !== '' || $member === null): ?>
+                            <p class="tk-error"><?= tk_h($voucherError ?: $memberError) ?></p>
+                        <?php elseif (!$wallet): ?>
+                            <p class="tk-note">Hiện chưa có mã giảm giá hoạt động.</p>
+                        <?php else: ?>
+                            <div class="tk-wallet">
+                                <?php foreach ($wallet as $entry): $v = $entry['voucher']; ?>
+                                    <article class="tk-voucher <?= $entry['ok'] ? '' : 'locked' ?>">
+                                        <h4><?= tk_h($v['ma_code']) ?> – Giảm <?= (int)$v['phan_tram_giam'] ?>%</h4>
+                                        <p><?= tk_h($v['ten_ma']) ?></p>
+                                        <p>Hạng tối thiểu: <b><?= tk_h($v['hang_toi_thieu']) ?></b></p>
+                                        <p>Đơn từ <?= tk_money($v['don_toi_thieu']) ?> · Tối đa <?= tk_money($v['giam_toi_da']) ?></p>
+                                        <?php if ((int)$v['mien_phi_van_chuyen'] === 1): ?><p class="tk-eligible">+ Miễn phí vận chuyển</p><?php endif; ?>
+                                        <p>Bắt đầu: <?= $v['ngay_bat_dau'] === null ? 'Ngay khi kích hoạt' : tk_h(tk_date($v['ngay_bat_dau'])) ?></p>
+                                        <p>Hết hạn: <?= $v['ngay_ket_thuc'] === null ? 'Không giới hạn thời hạn' : tk_h(tk_date($v['ngay_ket_thuc'])) ?></p>
+                                        <?php if ($v['gioi_han_su_dung'] !== null): ?><p>Giới hạn toàn hệ thống: <?= (int)$v['gioi_han_su_dung'] ?> lượt</p><?php endif; ?>
+                                        <?php if ($v['gioi_han_moi_user'] !== null): ?><p>Giới hạn mỗi khách: <?= (int)$v['gioi_han_moi_user'] ?> lượt</p><?php endif; ?>
+                                        <?php if ($entry['ok']): ?>
+                                            <p class="tk-eligible"><i class="fas fa-check-circle"></i> Có thể dùng nếu đơn đạt mức tối thiểu</p>
+                                            <div class="tk-actions">
+                                                <button type="button" class="tk-action tk-copy" data-code="<?= tk_h($v['ma_code']) ?>">Sao chép mã</button>
+                                                <a class="tk-action" href="giohang.php">Đến giỏ hàng</a>
+                                            </div>
+                                        <?php else: ?>
+                                            <p class="tk-unavailable"><i class="fas fa-lock"></i> <?= tk_h($entry['message']) ?></p>
+                                        <?php endif; ?>
+                                    </article>
+                                <?php endforeach; ?>
+                            </div>
+                            <p id="tk-copy-message" class="tk-note" role="status" aria-live="polite"></p>
+                        <?php endif; ?>
+
+                        <h3 class="tk-subtitle" id="tk-history-title"><i class="fas fa-history"></i> Lịch sử sử dụng mã giảm giá</h3>
+                        <?php if ($historyError !== ''): ?>
+                            <p class="tk-error"><?= tk_h($historyError) ?></p>
+                        <?php elseif (!$history): ?>
+                            <p class="tk-note">Bạn chưa sử dụng mã giảm giá cho đơn hàng nào.</p>
+                        <?php else: ?>
+                            <div class="tk-table-wrap">
+                                <table class="tk-history">
+                                    <thead><tr><th>Ngày sử dụng / đơn hàng</th><th>Mã / hạng khi đặt</th><th>Giảm sản phẩm</th><th>Giảm vận chuyển</th><th>Trạng thái</th></tr></thead>
+                                    <tbody>
+                                    <?php foreach ($history as $row):
+                                        $cancelled = in_array($row['trang_thai'], ['Đã huỷ','Đã hủy'], true); ?>
+                                        <tr>
+                                            <td><?= tk_h(tk_date($row['created_at'])) ?><br><a href="chitietdonhang.php?id=<?= (int)$row['donhang_id'] ?>"><?= tk_h($row['ma_don']) ?></a></td>
+                                            <td><b><?= tk_h($row['ma_code']) ?></b><br><?= tk_h($row['hang_thanh_vien'] ?? '—') ?></td>
+                                            <td><?= tk_money($row['tien_giam_gia']) ?></td>
+                                            <td><?= tk_money($row['tien_giam_van_chuyen']) ?></td>
+                                            <td class="<?= $cancelled ? 'tk-unavailable' : ($row['trang_thai'] === 'Đã giao' ? 'tk-eligible' : '') ?>"><?= tk_h($row['trang_thai']) ?><?php if ($cancelled): ?><br><small>Không tính tiết kiệm</small><?php endif; ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="tk-pages">
+                                <?php if ($historyPage > 1): ?><a class="tk-action" href="taikhoan.php?tab=thanhvien&amp;voucher_page=<?= $historyPage - 1 ?>#tk-history-title">Trang trước</a><?php endif; ?>
+                                <span>Trang <?= $historyPage ?>/<?= $historyPages ?> · <?= $historyCount ?> lượt ghi nhận</span>
+                                <?php if ($historyPage < $historyPages): ?><a class="tk-action" href="taikhoan.php?tab=thanhvien&amp;voucher_page=<?= $historyPage + 1 ?>#tk-history-title">Trang sau</a><?php endif; ?>
+                            </div>
+                            <p class="tk-note">Đơn hủy không tính vào tổng tiết kiệm và không chiếm lượt sử dụng theo chính sách voucher hiện tại.</p>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -673,6 +864,11 @@ if ($diemCanLenHang < 0) {
             <!-- ĐƠN HÀNG -->
             <div id="donhang" class="tab-content <?php echo $currentTab == 'donhang' ? 'active' : ''; ?>">
                 <h2 class="tab-title">ĐƠN HÀNG CỦA BẠN</h2>
+                <?php if ($cancelFlash !== null): ?>
+                    <div role="status" class="cancel-order-notice<?= !empty($cancelFlash['ok']) ? ' ok' : '' ?>">
+                        <?= tk_h($cancelFlash['message'] ?? '') ?>
+                    </div>
+                <?php endif; ?>
 
                 <div class="order-filter-bar">
 
@@ -736,6 +932,9 @@ if ($diemCanLenHang < 0) {
                                     <p><b>Số điện thoại:</b> <?php echo htmlspecialchars($order['sdt'] ?? $order['so_dien_thoai'] ?? 'Đang cập nhật'); ?></p>
                                     <p><b>Địa chỉ:</b> <?php echo htmlspecialchars($order['dia_chi'] ?? $order['diachi'] ?? 'Đang cập nhật'); ?></p>
                                     <p><b>Thanh toán:</b> <?php echo htmlspecialchars($order['phuong_thuc'] ?? 'COD'); ?></p>
+                                    <?php if (!empty($order['ma_giam_gia'])): ?>
+                                        <p class="tk-order-voucher"><b>Mã giảm giá:</b> <?= tk_h($order['ma_giam_gia']) ?> · Giảm <?= tk_money($order['tien_giam_gia'] ?? 0) ?></p>
+                                    <?php endif; ?>
                                 </div>
 
                                 <div class="order-user-bottom">
@@ -750,11 +949,12 @@ if ($diemCanLenHang < 0) {
     </a>
 
     <?php if (in_array($order['trang_thai'] ?? '', ['Chờ xử lý', 'Chờ lấy hàng'])) { ?>
-<a href="#"
-   class="cancel-order-btn"
-   onclick="confirmCancelOrder(<?php echo (int)$order['id']; ?>)">
-    Huỷ đơn
-</a>
+<form class="cancel-order-form" method="POST" action="huydonhang.php"
+      onsubmit="return confirmCancelOrder(this)">
+    <input type="hidden" name="id" value="<?= (int)$order['id'] ?>">
+    <input type="hidden" name="csrf_token" value="<?= tk_h($csrfToken) ?>">
+    <button type="submit" class="cancel-order-btn">Huỷ đơn</button>
+</form>
     <?php } ?>
 
 </div>
@@ -996,23 +1196,49 @@ function goToTab(tabId) { // Hàm chuyển tab bằng nút bấm
     });
 }
 
-function showMemberLevel(levelName, moneyRange, element) {
-    // Hàm hiển thị thông tin hạng thành viên
+// Nội dung quyền lợi lấy từ SQL, không hard-code % giảm giá.
+const tkRules = <?= json_encode($rules, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE) ?>;
+const tkBenefits = <?= json_encode($benefits, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE) ?>;
+const tkBenefitsAvailable = <?= ($voucherError === '' && $member !== null) ? 'true' : 'false' ?>;
+const tkMoney = value => Number(value).toLocaleString('vi-VN') + 'đ';
 
-    document.querySelectorAll(".level").forEach(function(item) {
-        item.classList.remove("active");
-        // Xóa active của tất cả hạng
+document.querySelectorAll('#thanhvien .level[data-tier]').forEach(button => {
+    button.addEventListener('click', () => {
+        const tier = button.dataset.tier;
+        if (!Object.prototype.hasOwnProperty.call(tkRules, tier)) return;
+        document.querySelectorAll('#thanhvien .level[data-tier]').forEach(item => {
+            item.classList.toggle('active', item === button);
+            item.setAttribute('aria-pressed', item === button ? 'true' : 'false');
+        });
+        document.getElementById('tk-level-title').textContent = 'Chi tiết hạng ' + tier;
+        document.getElementById('tk-level-condition').textContent = tier === 'Member'
+            ? 'Hạng mặc định khi đăng ký tài khoản.'
+            : 'Từ ' + tkMoney(tkRules[tier].spend) + ' hoặc ' + tkRules[tier].orders + ' đơn đã giao.';
+        const list = document.getElementById('tk-level-benefits');
+        list.replaceChildren();
+        const items = !tkBenefitsAvailable ? ['Chưa thể tải quyền lợi từ database.']
+            : (tkBenefits[tier].length ? tkBenefits[tier] : ['Hiện chưa có mã đang hiệu lực riêng cho hạng này.']);
+        items.forEach(text => {
+            const li = document.createElement('li');
+            li.textContent = text;
+            list.appendChild(li);
+        });
     });
+});
 
-    element.classList.add("active");
-    // Thêm active cho hạng được chọn
-
-    document.getElementById("member-detail-box").innerHTML = `
-        <h3>Chi tiết hạng ${levelName}</h3>
-        <p>Chi tiêu tích lũy từ <b>${moneyRange}</b></p>
-    `;
-    // Hiển thị thông tin chi tiết hạng thành viên
-}
+document.querySelectorAll('#thanhvien .tk-copy').forEach(button => {
+    button.addEventListener('click', async () => {
+        const code = button.dataset.code;
+        const message = document.getElementById('tk-copy-message');
+        try {
+            if (!navigator.clipboard || !window.isSecureContext) throw new Error('Clipboard unavailable');
+            await navigator.clipboard.writeText(code);
+            message.textContent = 'Đã sao chép mã ' + code + '. Dán mã vào ô giảm giá ở giỏ hàng.';
+        } catch (e) {
+            message.textContent = 'Hãy sao chép thủ công mã ' + code + ' rồi nhập tại giỏ hàng.';
+        }
+    });
+});
 
 function openAddressModal() {
 
@@ -1049,50 +1275,35 @@ function closeEditDefaultAddressModal() {
 
 }
 
-function confirmCancelOrder(orderId) {
-    // Hàm xác nhận hủy đơn hàng
-
+function confirmCancelOrder(form) {
+    // Giữ popup SweetAlert; nếu CDN lỗi, dùng hộp xác nhận của trình duyệt.
+    if (typeof Swal === 'undefined') {
+        return window.confirm('Bạn có chắc chắn muốn huỷ đơn hàng này không?');
+    }
+    const button = form.querySelector('button[type="submit"]');
+    if (button.disabled) return false;
+    button.disabled = true;
     Swal.fire({
-
         title: 'Huỷ đơn hàng?',
-        // Tiêu đề thông báo
-
         text: 'Bạn có chắc chắn muốn huỷ đơn hàng này không?',
-        // Nội dung thông báo
-
         icon: 'warning',
-        // Icon cảnh báo
-
         showCancelButton: true,
-        // Hiển thị nút hủy
-
         confirmButtonColor: '#e53935',
-        // Màu nút đồng ý
-
         cancelButtonColor: '#999',
-        // Màu nút không
-
         confirmButtonText: 'Đồng ý huỷ',
-        // Text nút xác nhận
-
         cancelButtonText: 'Không',
-        // Text nút hủy
-
         borderRadius: '18px'
-        // Bo góc popup
-
     }).then((result) => {
-
         if (result.isConfirmed) {
-            // Nếu người dùng bấm đồng ý
-
-            window.location.href =
-                'huydonhang.php?id=' + orderId;
-
-            // Chuyển sang file hủy đơn hàng
-            // và truyền id đơn hàng qua URL
+            // Gửi form POST có CSRF, không gọi lại onsubmit.
+            HTMLFormElement.prototype.submit.call(form);
+        } else {
+            button.disabled = false;
         }
+    }).catch(() => {
+        button.disabled = false;
     });
+    return false;
 }
 
 </script>

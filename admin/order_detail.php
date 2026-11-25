@@ -1,10 +1,27 @@
+
 <?php
-include "check_admin.php";
-include "../connect.php";
+require_once __DIR__ . '/check_admin.php';
+require_once __DIR__ . '/../csrf.php';
+header('Cache-Control: no-store');
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+require_once __DIR__ . '/../connect.php';
 
-$id = (int)($_GET['id'] ?? 0);
+function od_e($value): string {
+    return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+function od_money($value): string {
+    return number_format((int)$value, 0, ',', '.') . 'đ';
+}
+function od_status(string $status): string {
+    return $status === 'Đã hủy' ? 'Đã huỷ' : $status;
+}
+$token = csrf_token();
 
-if ($id <= 0) {
+$id = filter_var($_GET['id'] ?? null, FILTER_VALIDATE_INT,
+    ['options' => ['min_range' => 1, 'max_range' => 2147483647]]);
+
+if (!$id) {
+    http_response_code(400);
     die("ID đơn hàng không hợp lệ.");
 }
 
@@ -15,8 +32,10 @@ mysqli_stmt_execute($stmt);
 
 $result = mysqli_stmt_get_result($stmt);
 $order = mysqli_fetch_assoc($result);
+mysqli_stmt_close($stmt);
 
 if (!$order) {
+    http_response_code(404);
     die("Không tìm thấy đơn hàng.");
 }
 
@@ -29,6 +48,31 @@ $stmtItems = mysqli_prepare($conn, "
 mysqli_stmt_bind_param($stmtItems, "i", $id);
 mysqli_stmt_execute($stmtItems);
 $items = mysqli_stmt_get_result($stmtItems);
+
+mysqli_stmt_close($stmtItems);
+
+/* Lịch sử voucher: chỉ lấy dữ liệu đã ghi tại thời điểm mua. */
+$stmtVoucher = $conn->prepare("SELECT id, magiamgia_id, user_id, ma_code,
+    tien_giam_gia, tien_giam_van_chuyen, created_at
+    FROM lichsu_magiamgia WHERE donhang_id = ?");
+$stmtVoucher->bind_param('i', $id);
+$stmtVoucher->execute();
+$history = $stmtVoucher->get_result()->fetch_assoc();
+$stmtVoucher->close();
+
+$voucherCode = trim((string)($order['ma_giam_gia'] ?? ''));
+$tier = $order['hang_thanh_vien'] ?? null;
+$subtotal = (int)$order['tam_tinh'];
+$discount = (int)($order['tien_giam_gia'] ?? 0);
+$shipping = (int)$order['phi_van_chuyen'];
+$shippingDiscount = $history ? (int)$history['tien_giam_van_chuyen'] : 0;
+$total = (int)$order['tong_cong'];
+$currentStatus = od_status((string)($order['trang_thai'] ?? ''));
+$cancelled = $currentStatus === 'Đã huỷ';
+$hasVoucher = $voucherCode !== '' || $history !== null;
+$terminal = $cancelled && $hasVoucher;
+$flash = $_SESSION['admin_order_flash'] ?? null;
+unset($_SESSION['admin_order_flash']);
 
 /* Ghép địa chỉ đầy đủ */
 $diaChiParts = [
@@ -50,7 +94,7 @@ $trangThaiList = [
     'Chờ lấy hàng',
     'Đang vận chuyển',
     'Đã giao',
-    'Đã hủy'
+    'Đã huỷ'
 ];
 
 function statusClass($status) {
@@ -64,6 +108,7 @@ function statusClass($status) {
         case 'Đã giao':
             return 'status-success';
         case 'Đã hủy':
+        case 'Đã huỷ':
             return 'status-cancel';
         default:
             return 'status-default';
@@ -74,6 +119,7 @@ function statusClass($status) {
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Chi tiết đơn hàng</title>
 
     <style>
@@ -229,6 +275,15 @@ function statusClass($status) {
             cursor:pointer;
         }
 
+        .voucher-code{font-weight:bold;color:#15985d;overflow-wrap:anywhere}
+        .muted{color:#666;font-size:14px;line-height:1.5}
+        .notice{padding:13px 16px;border-radius:8px;margin-bottom:20px;line-height:1.5}
+        .notice-ok{background:#dcfce7;color:#15803d}
+        .notice-error{background:#fee2e2;color:#991b1b}
+        .notice-warning{background:#fff0c7;color:#855000}
+        .info-item span{overflow-wrap:anywhere}
+        .info-item span.money{color:#15985d}
+        .status-form button:disabled{opacity:.5;cursor:not-allowed}
         .table-wrap{
             width:100%;
             overflow-x:auto;
@@ -305,99 +360,155 @@ include "sidebar.php";
         <h1>Chi tiết đơn hàng</h1>
     </div>
 
+    <?php if (is_array($flash)): ?>
+        <div role="status" class="notice <?= !empty($flash['ok']) ? 'notice-ok' : 'notice-error' ?>">
+            <?= od_e($flash['message'] ?? '') ?>
+        </div>
+    <?php endif; ?>
+
     <div class="box">
         <h2>Thông tin đơn hàng</h2>
 
         <div class="info-grid">
             <div class="info-item">
                 <b>Mã đơn</b>
-                <span><?php echo htmlspecialchars($order['ma_don'] ?? ''); ?></span>
+                <span><?php echo od_e($order['ma_don'] ?? ''); ?></span>
             </div>
 
             <div class="info-item">
                 <b>Ngày đặt</b>
-                <span><?php echo htmlspecialchars($order['created_at'] ?? ''); ?></span>
+                <span><?php echo od_e($order['created_at'] ?? ''); ?></span>
             </div>
 
             <div class="info-item">
                 <b>Khách hàng</b>
-                <span><?php echo htmlspecialchars($order['ho_ten'] ?? ''); ?></span>
+                <span><?php echo od_e($order['ho_ten'] ?? ''); ?></span>
             </div>
 
             <div class="info-item">
                 <b>Số điện thoại</b>
-                <span><?php echo htmlspecialchars($order['sdt'] ?? ''); ?></span>
+                <span><?php echo od_e($order['sdt'] ?? ''); ?></span>
             </div>
 
             <div class="info-item">
                 <b>Phương thức thanh toán</b>
-                <span><?php echo htmlspecialchars($order['phuong_thuc'] ?? ''); ?></span>
+                <span><?php echo od_e($order['phuong_thuc'] ?? ''); ?></span>
             </div>
 
             <div class="info-item">
                 <b>Trạng thái</b>
                 <span class="status-badge <?php echo statusClass($order['trang_thai'] ?? ''); ?>">
-                    <?php echo htmlspecialchars($order['trang_thai'] ?? ''); ?>
+                    <?php echo od_e($order['trang_thai'] ?? ''); ?>
                 </span>
             </div>
 
             <div class="info-item">
                 <b>Địa chỉ cụ thể</b>
-                <span><?php echo htmlspecialchars($order['dia_chi'] ?? ''); ?></span>
+                <span><?php echo od_e($order['dia_chi'] ?? ''); ?></span>
             </div>
 
             <div class="info-item">
                 <b>Phường / Xã</b>
-                <span><?php echo htmlspecialchars($order['phuong_xa'] ?? ''); ?></span>
+                <span><?php echo od_e($order['phuong_xa'] ?? ''); ?></span>
             </div>
 
             <div class="info-item">
                 <b>Quận / Huyện</b>
-                <span><?php echo htmlspecialchars($order['quan_huyen'] ?? ''); ?></span>
+                <span><?php echo od_e($order['quan_huyen'] ?? ''); ?></span>
             </div>
 
             <div class="info-item">
                 <b>Tỉnh / Thành</b>
-                <span><?php echo htmlspecialchars($order['tinh_thanh'] ?? ''); ?></span>
+                <span><?php echo od_e($order['tinh_thanh'] ?? ''); ?></span>
             </div>
 
             <div class="info-item full">
                 <b>Địa chỉ giao hàng</b>
-                <span><?php echo htmlspecialchars($diaChiDayDu); ?></span>
+                <span><?php echo od_e($diaChiDayDu); ?></span>
             </div>
 
+            <div class="info-item">
+                <b>Hạng thành viên khi mua</b>
+                <span><?= od_e($tier ?: 'Chưa ghi nhận (đơn cũ)') ?></span>
+            </div>
+            <div class="info-item">
+                <b>Mã giảm giá</b>
+                <span class="voucher-code"><?= od_e($voucherCode !== '' ? $voucherCode : ($history['ma_code'] ?? 'Không sử dụng')) ?></span>
+            </div>
             <div class="info-item">
                 <b>Tạm tính</b>
-                <span><?php echo number_format((int)($order['tam_tinh'] ?? 0),0,',','.'); ?>đ</span>
+                <span><?= od_money($subtotal) ?></span>
             </div>
-
             <div class="info-item">
-                <b>Phí vận chuyển</b>
-                <span><?php echo number_format((int)($order['phi_van_chuyen'] ?? 0),0,',','.'); ?>đ</span>
+                <b>Tiền giảm giá sản phẩm</b>
+                <span class="money"><?= $discount > 0 ? '−' : '' ?><?= od_money($discount) ?></span>
             </div>
-
             <div class="info-item">
-                <b>Tổng tiền</b>
-                <span class="money"><?php echo number_format((int)($order['tong_cong'] ?? 0),0,',','.'); ?>đ</span>
+                <b>Phí vận chuyển thực trả</b>
+                <span><?= od_money($shipping) ?><?= $shipping === 0 && $shippingDiscount > 0 ? ' (Freeship)' : '' ?></span>
+            </div>
+            <div class="info-item">
+                <b>Tiền giảm phí vận chuyển</b>
+                <span class="money"><?= $shippingDiscount > 0 ? '−' : '' ?><?= od_money($shippingDiscount) ?></span>
+            </div>
+            <div class="info-item">
+                <b>Tổng tiết kiệm từ voucher</b>
+                <span class="money"><?= od_money($discount + $shippingDiscount) ?></span>
+                <?php if ($cancelled): ?><p class="muted">Đơn đã hủy, không ghi nhận tiết kiệm thực tế.</p><?php endif; ?>
+            </div>
+            <div class="info-item">
+                <b>Tổng thanh toán sau giảm</b>
+                <span class="money"><?= od_money($total) ?></span>
             </div>
         </div>
 
+        <?php if ($total !== $subtotal - $discount + $shipping): ?>
+            <p class="notice notice-warning">Tổng tiền lưu trong đơn không khớp công thức hiện tại. Hệ thống giữ nguyên dữ liệu lịch sử; hãy kiểm tra trước khi xử lý.</p>
+        <?php endif; ?>
+        <?php if ($terminal): ?>
+            <p class="muted">Đơn có voucher đã hủy không được mở lại, để tránh sử dụng vượt giới hạn voucher đã hoàn trả. Khách hàng có thể tạo đơn mới.</p>
+        <?php endif; ?>
         <form method="POST" action="update_order_status.php" class="status-form">
             <input type="hidden" name="id" value="<?php echo (int)$order['id']; ?>">
 
-            <label><b>Cập nhật trạng thái:</b></label>
+            <input type="hidden" name="csrf_token" value="<?= od_e($token) ?>">
+            <input type="hidden" name="expected_status" value="<?= od_e($currentStatus) ?>">
+            <label for="order-status"><b>Cập nhật trạng thái:</b></label>
 
-            <select name="trang_thai">
+            <select id="order-status" name="trang_thai" required <?= $terminal ? 'disabled' : '' ?>>
                 <?php foreach ($trangThaiList as $status) { ?>
-                    <option value="<?php echo htmlspecialchars($status); ?>"
-                        <?php echo (($order['trang_thai'] ?? '') == $status) ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars($status); ?>
+                    <option value="<?php echo od_e($status); ?>"
+                        <?php echo ($currentStatus === $status) ? 'selected' : ''; ?>>
+                        <?php echo od_e($status); ?>
                     </option>
                 <?php } ?>
             </select>
 
-            <button type="submit">Cập nhật</button>
+            <button type="submit" <?= $terminal ? 'disabled' : '' ?>>Cập nhật</button>
         </form>
+    </div>
+
+    <div class="box">
+        <h2>Lịch sử sử dụng mã giảm giá</h2>
+        <?php if ($history): ?>
+            <div class="info-grid">
+                <div class="info-item"><b>Mã đã sử dụng</b><span><?= od_e($history['ma_code']) ?></span></div>
+                <div class="info-item"><b>Thời gian sử dụng</b><span><?= od_e($history['created_at']) ?></span></div>
+                <div class="info-item"><b>Giảm giá sản phẩm (lịch sử)</b><span><?= od_money($history['tien_giam_gia']) ?></span></div>
+                <div class="info-item"><b>Giảm phí vận chuyển (lịch sử)</b><span><?= od_money($shippingDiscount) ?></span></div>
+                <div class="info-item"><b>ID voucher</b><span><?= (int)$history['magiamgia_id'] ?></span></div>
+                <div class="info-item"><b>Ghi nhận lượt sử dụng</b><span><?= $cancelled ? 'Đã hoàn trả lượt (đơn hủy)' : 'Đang tính vào lượt sử dụng' ?></span></div>
+            </div>
+            <?php if ((int)$history['user_id'] !== (int)$order['user_id'] || (int)$history['tien_giam_gia'] !== $discount || $history['ma_code'] !== $voucherCode): ?>
+                <p class="notice notice-warning">Dữ liệu lịch sử voucher không khớp thông tin đơn hàng. Cần kiểm tra; hệ thống không tự sửa dữ liệu.</p>
+            <?php endif; ?>
+            <p class="muted">Lịch sử được lưu tại thời điểm đặt hàng, không tính lại theo cấu hình voucher hiện tại.</p>
+        <?php elseif ($hasVoucher): ?>
+            <p class="notice notice-warning">Đơn có mã giảm giá nhưng chưa có bản ghi lịch sử. Không thể xác nhận số tiền giảm vận chuyển.</p>
+        <?php else: ?>
+            <p class="muted">Đơn hàng không sử dụng voucher.</p>
+        <?php endif; ?>
+        <a href="vouchers.php" class="back">Quản lý mã giảm giá</a>
     </div>
 
     <div class="box">
@@ -435,13 +546,13 @@ include "sidebar.php";
                             <tr>
                                 <td>
                                     <?php if (!empty($hinhAnh)) { ?>
-                                        <img class="product-img" src="../<?php echo htmlspecialchars($hinhAnh); ?>" alt="">
+                                        <img class="product-img" src="../<?php echo od_e($hinhAnh); ?>" alt="">
                                     <?php } else { ?>
                                         Không có ảnh
                                     <?php } ?>
                                 </td>
 
-                                <td><?php echo htmlspecialchars($tenSanPham); ?></td>
+                                <td><?php echo od_e($tenSanPham); ?></td>
 
                                 <td><?php echo number_format($gia,0,',','.'); ?>đ</td>
 
