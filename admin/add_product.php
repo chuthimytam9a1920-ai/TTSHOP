@@ -217,6 +217,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin:15px 0;
         }
     </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="admin.css">
 </head>
 
 <body>

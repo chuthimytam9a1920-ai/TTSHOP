@@ -21,6 +21,7 @@ $menuPages = [
     'edit_category_product.php' => 'category_products',
 
     'orders.php' => 'orders',
+    'reports.php' => 'reports',
 
     'order_detail.php' => 'orders',
 
@@ -38,78 +39,46 @@ $activePage = $page ?? ($menuPages[$currentFile] ?? '');
 ?>
 
 <aside class="sidebar">
-
-    <h2>TT SHOP ADMIN</h2>
-
-    <!-- DASHBOARD -->
-
-    <a href="index.php"
-       class="<?= $activePage === 'dashboard' ? 'active' : '' ?>">
-
-        Dashboard
-
+    <a class="admin-brand" href="index.php">
+        <span class="brand-mark">TT</span>
+        <span><strong>TT SHOP</strong><small>QUẢN TRỊ CỬA HÀNG</small></span>
     </a>
 
-    <!-- SẢN PHẨM TRANG CHỦ -->
+    <nav class="admin-nav" aria-label="Điều hướng quản trị">
+        <p class="nav-heading">TỔNG QUAN</p>
+        <a href="index.php" class="<?php echo ($activePage === 'dashboard') ? 'active' : ''; ?>">
+            <span class="nav-icon">⌂</span><span>Tổng quan</span>
+        </a>
 
-    <a href="products.php"
-       class="<?= $activePage === 'products' ? 'active' : '' ?>">
+        <p class="nav-heading">BÁN HÀNG</p>
+        <a href="orders.php" class="<?php echo ($activePage === 'orders') ? 'active' : ''; ?>">
+            <span class="nav-icon">▤</span><span>Đơn hàng</span>
+        </a>
+        <a href="reports.php" class="<?php echo ($activePage === 'reports') ? 'active' : ''; ?>">
+            <span class="nav-icon">▥</span><span>Báo cáo</span>
+        </a>
+        <a href="products.php" class="<?php echo ($activePage === 'products') ? 'active' : ''; ?>">
+            <span class="nav-icon">□</span><span>Sản phẩm trang chủ</span>
+        </a>
+        <a href="category_products.php" class="<?php echo ($activePage === 'category_products') ? 'active' : ''; ?>">
+            <span class="nav-icon">▦</span><span>Sản phẩm danh mục</span>
+        </a>
 
-        Sản phẩm trang chủ
+        <a href="vouchers.php" class="<?= $activePage === 'vouchers' ? 'active' : '' ?>">
+            <span class="nav-icon">◇</span><span>Quản lý mã giảm giá</span>
+        </a>
 
-    </a>
+        <p class="nav-heading">KHÁCH HÀNG</p>
+        <a href="customers.php" class="<?php echo ($activePage === 'customers') ? 'active' : ''; ?>">
+            <span class="nav-icon">◎</span><span>Khách hàng</span>
+        </a>
+        <a href="chat.php" class="<?php echo ($activePage === 'chat') ? 'active' : ''; ?>">
+            <span class="nav-icon">✉</span><span>Tin nhắn</span>
+        </a>
+    </nav>
 
-    <!-- SẢN PHẨM DANH MỤC -->
-
-    <a href="category_products.php"
-       class="<?= $activePage === 'category_products' ? 'active' : '' ?>">
-
-        Sản phẩm danh mục
-
-    </a>
-
-    <!-- QUẢN LÝ ĐƠN HÀNG -->
-
-    <a href="orders.php"
-       class="<?= $activePage === 'orders' ? 'active' : '' ?>">
-
-        Quản lý đơn hàng
-
-    </a>
-
-    <!-- QUẢN LÝ KHÁCH HÀNG -->
-
-    <a href="customers.php"
-       class="<?= $activePage === 'customers' ? 'active' : '' ?>">
-
-        Quản lý khách hàng
-
-    </a>
-
-    <!-- QUẢN LÝ MÃ GIẢM GIÁ -->
-
-    <a href="vouchers.php"
-       class="<?= $activePage === 'vouchers' ? 'active' : '' ?>">
-
-        Quản lý mã giảm giá
-
-    </a>
-
-    <!-- CHAT KHÁCH HÀNG -->
-
-    <a href="chat.php"
-       class="<?= $activePage === 'chat' ? 'active' : '' ?>">
-
-        Chat khách hàng
-
-    </a>
-
-    <!-- VỀ TRANG CHỦ -->
-
-    <a href="../index.php">
-
-        Về trang chủ
-
-    </a>
-
+    <div class="sidebar-footer">
+        <a href="../index.php" target="_blank" rel="noopener"><span class="nav-icon">↗</span><span>Xem cửa hàng</span></a>
+        <a href="logout.php" class="sidebar-logout"><span class="nav-icon">⇥</span><span>Đăng xuất</span></a>
+    </div>
 </aside>

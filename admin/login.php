@@ -110,8 +110,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-weight: bold;
         }
     </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="admin.css">
 </head>
-<body>
+<body class="login-page">
 
 <div class="login-box">
     <h1>TT SHOP ADMIN</h1>

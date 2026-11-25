@@ -731,7 +731,19 @@ try {
                             <p class="tk-error"><?= tk_h($memberError) ?></p>
                         <?php else: ?>
                         <div class="member-top">
-                            <div class="member-badge"><img src="images/member.png" alt="Thành viên TT SHOP"></div>
+<div class="member-badge">
+    <div class="member-icon">
+        <i class="fas fa-award"></i>
+    </div>
+
+    <div class="member-rank">
+        <?= tk_h($member['tier']) ?>
+    </div>
+
+    <div class="member-subtitle">
+        Thành viên TT SHOP
+    </div>
+</div>
                             <div class="member-info">
                                 <p>Tổng chi tiêu tích lũy: <span><?= tk_money($member['spend']) ?></span></p>
                                 <p>Hạng thành viên hiện tại: <span><?= tk_h($member['tier']) ?></span></p>

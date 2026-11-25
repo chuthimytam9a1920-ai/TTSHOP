@@ -108,6 +108,8 @@ function tinhGiamGia($oldPrice, $price) {
         .tag-sale{background:#fff0c7;color:#b66a00}
         .tag-no{background:#eee;color:#777}
     </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="admin.css">
 </head>
 
 <body>

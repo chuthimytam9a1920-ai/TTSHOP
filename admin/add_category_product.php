@@ -196,22 +196,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     background:rgba(255,255,255,.18);
 }
     </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="admin.css">
 </head>
 
 <body>
 
 <div class="layout">
-<aside class="sidebar">
-    <h2>TT SHOP<br>ADMIN</h2>
-
-    <a href="index.php">Dashboard</a>
-    <a href="products.php">Sản phẩm trang chủ</a>
-    <a class="active" href="category_products.php">Sản phẩm danh mục</a>
-    <a href="orders.php">Quản lý đơn hàng</a>
-    <a href="customers.php">Quản lý khách hàng</a>
-    <a href="chat_admin.php">Chat khách hàng</a>
-    <a href="../index.php">Về trang chủ</a>
-</aside>
+<?php $page = "category_products"; include __DIR__ . '/sidebar.php'; ?>
 <main class="main">
 
     <div class="box">

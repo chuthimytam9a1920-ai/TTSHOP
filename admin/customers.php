@@ -290,6 +290,7 @@ foreach ($customers as $row) {
         .detail-panel p{line-height:1.5}
         @media(max-width:800px){.layout{grid-template-columns:1fr}.main{padding:15px}.box{padding:15px}}
     </style>
+    <link rel="stylesheet" href="admin.css">
 </head>
 
 <body>

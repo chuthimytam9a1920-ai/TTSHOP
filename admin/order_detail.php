@@ -343,6 +343,7 @@ function statusClass($status) {
             }
         }
     </style>
+    <link rel="stylesheet" href="admin.css">
 </head>
 
 <body>

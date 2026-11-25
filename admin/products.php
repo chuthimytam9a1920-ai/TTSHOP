@@ -89,6 +89,8 @@ function tinhGiamGia($oldPrice, $price) {
     .tag-flash{background:#ff1f1f;color:white}
     .tag-no{background:#eee;color:#777}
 </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="admin.css">
 </head>
 
 <body>

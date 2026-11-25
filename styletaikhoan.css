@@ -967,3 +967,64 @@ body {
     border: none;
     color: white;
 }
+/* =====================================
+   HUY HIỆU THÀNH VIÊN TT SHOP
+   ===================================== */
+
+.member-badge {
+    width: 180px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 10px;
+}
+
+.member-icon {
+    width: 145px;
+    height: 145px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #e4f7ec, #c5ead7);
+    border: 3px solid #109e65;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 5px 18px rgba(16, 158, 101, 0.15);
+}
+
+.member-icon i {
+    font-size: 80px;
+    color: #109e65;
+}
+
+.member-rank {
+    font-size: 22px;
+    font-weight: 800;
+    color: #008f4c;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.member-subtitle {
+    font-size: 14px;
+    color: #666;
+    font-weight: 500;
+}
+
+@media (max-width: 768px) {
+    .member-badge {
+        width: 100%;
+        margin-bottom: 15px;
+    }
+
+    .member-icon {
+        width: 120px;
+        height: 120px;
+    }
+
+    .member-icon i {
+        font-size: 65px;
+    }
+}
