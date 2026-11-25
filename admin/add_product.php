@@ -1,6 +1,7 @@
 <?php
 include "check_admin.php";
 include "../connect.php";
+
 $error = "";
 
 $cats = [

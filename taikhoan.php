@@ -4,6 +4,10 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 include "connect.php";
+require_once __DIR__ . '/csrf.php';
+$csrfToken = csrf_token();
+$accountFieldErrors = $_SESSION['account_field_errors'] ?? array();
+unset($_SESSION['account_field_errors']);
 
 /* Kiểm tra đăng nhập */
 if (!isset($_SESSION['is_login']) || $_SESSION['is_login'] !== true) {
@@ -78,23 +82,23 @@ $fullName = mb_convert_case($fullName, MB_CASE_TITLE, "UTF-8");
 
 /* Tính phần trăm hoàn thiện tài khoản */
 $percent = 0;
+$profileComplete = true;
 
-if (!empty($ho))        $percent += 15;
-if (!empty($ten))       $percent += 15;
-if (!empty($email))     $percent += 15;
-if (!empty($sdt))       $percent += 15;
-if (!empty($ngaysinh))  $percent += 20;
-if (!empty($diachi))    $percent += 20;
+foreach ([[$ho, 15], [$ten, 15], [$email, 15], [$sdt, 15], [$ngaysinh, 20], [$diachi, 20]] as [$value, $weight]) {
+    if (trim((string)$value) !== '') {
+        $percent += $weight;
+    } else {
+        $profileComplete = false;
+    }
+}
 
-if ($percent >= 100) {
+if ($profileComplete) {
     $percent = 100;
-    $profileText   = "Tuyệt vời, thông tin của bạn đã đủ";
+    $profileText   = "Tuyệt vời! Hồ sơ của bạn đã đầy đủ";
     $profileMascot = "./imagescategory/mascot-happy.png";
-    $profileBtn    = "Xem chi tiết";
 } else {
     $profileText   = "Ôi không, bạn chưa cập nhật đủ thông tin!";
     $profileMascot = "./imagescategory/Screenshot 2026-05-07 143553.png";
-    $profileBtn    = "Cập nhật ngay";
 }
 
 /* Tạo avatar */
@@ -435,9 +439,11 @@ if ($diemCanLenHang < 0) {
                             <img src="<?php echo $profileMascot; ?>" class="mascot-img" alt="mascot">
                         </div>
 
-                        <button class="card-btn" onclick="goToTab('thongtin')">
-                            <?php echo htmlspecialchars($profileBtn); ?>
-                        </button>
+                        <?php if (!$profileComplete) { ?>
+                            <button class="card-btn" onclick="goToTab('thongtin')">
+                                Cập nhật ngay
+                            </button>
+                        <?php } ?>
 
                         <div class="card-bottom">
                             <i class="fas fa-user-circle card-icon"></i>
@@ -525,7 +531,6 @@ if ($diemCanLenHang < 0) {
                             <div class="progress">
                                 <div class="progress-fill" style="width:100%;"></div>
                             </div>
-                            <span>100%</span>
                         </div>
                     </div>
 
@@ -536,17 +541,19 @@ if ($diemCanLenHang < 0) {
             <div id="thongtin" class="tab-content">
                 <h2 class="tab-title">THÔNG TIN TÀI KHOẢN</h2>
 
-                <form class="account-form" action="capnhat_tk.php" method="POST">
+                <form class="account-form" action="capnhat_tk.php" method="POST" novalidate>
 
                     <div class="form-row">
                         <div class="form-group">
                             <label>Họ:</label>
                             <input type="text" name="ho" value="<?php echo htmlspecialchars($ho); ?>">
+                            <?php if (!empty($accountFieldErrors['profile_ho'])): ?><small class="field-error" data-error-for="ho" aria-live="polite"><?php echo htmlspecialchars($accountFieldErrors['profile_ho'], ENT_QUOTES, 'UTF-8'); ?></small><?php endif; ?>
                         </div>
 
                         <div class="form-group">
                             <label>Tên:</label>
                             <input type="text" name="ten" value="<?php echo htmlspecialchars($ten); ?>">
+                            <?php if (!empty($accountFieldErrors['profile_ten'])): ?><small class="field-error" data-error-for="ten" aria-live="polite"><?php echo htmlspecialchars($accountFieldErrors['profile_ten'], ENT_QUOTES, 'UTF-8'); ?></small><?php endif; ?>
                         </div>
                     </div>
 
@@ -557,18 +564,21 @@ if ($diemCanLenHang < 0) {
 
                     <div class="form-group">
                         <label>Số điện thoại:</label>
-                        <input type="text" name="sdt" value="<?php echo htmlspecialchars($sdt); ?>">
+                        <input type="text" name="sdt" value="<?php echo htmlspecialchars($sdt); ?>" data-validate="phone" data-label="số điện thoại" required>
+                        <?php if (!empty($accountFieldErrors['profile_sdt'])): ?><small class="field-error" data-error-for="sdt" aria-live="polite"><?php echo htmlspecialchars($accountFieldErrors['profile_sdt'], ENT_QUOTES, 'UTF-8'); ?></small><?php endif; ?>
                     </div>
 
                     <div class="form-group">
                         <label>Ngày sinh:</label>
                         <input type="date" name="ngaysinh" value="<?php echo htmlspecialchars($ngaysinh); ?>">
+                        <?php if (!empty($accountFieldErrors['profile_ngaysinh'])): ?><small class="field-error" data-error-for="ngaysinh" aria-live="polite"><?php echo htmlspecialchars($accountFieldErrors['profile_ngaysinh'], ENT_QUOTES, 'UTF-8'); ?></small><?php endif; ?>
                     </div>
 
                     <div class="form-group">
                         <label>Địa chỉ:</label>
                         <input type="text" name="diachi" placeholder="Nhập địa chỉ của bạn" value="<?php echo htmlspecialchars($diachi); ?>">
                     </div>
+
                     <button type="submit" class="update-btn">Lưu thay đổi</button>
 
                 </form>
@@ -763,6 +773,7 @@ if ($diemCanLenHang < 0) {
             <div id="diachi" class="tab-content">
 
                 <h2 class="tab-title">ĐỊA CHỈ CỦA BẠN</h2>
+                <?php if (!empty($accountFieldErrors['address_action'])): ?><small class="field-error" aria-live="polite"><?php echo htmlspecialchars($accountFieldErrors['address_action'], ENT_QUOTES, 'UTF-8'); ?></small><?php endif; ?>
 
                 <button class="add-address-btn" onclick="openAddressModal()">
                     Thêm địa chỉ
@@ -845,11 +856,11 @@ if ($diemCanLenHang < 0) {
                                     Chỉnh sửa địa chỉ
                                 </a>
 
-                                <a href="xoadiachi.php?id=<?php echo (int)$addr['id']; ?>"
-                                   class="delete-address"
-                                   onclick="return confirm('Bạn có chắc muốn xóa địa chỉ này không?')">
-                                    Xóa
-                                </a>
+                                <form action="xoadiachi.php" method="POST" class="address-delete-form">
+                                    <input type="hidden" name="id" value="<?php echo (int)$addr['id']; ?>">
+                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                                    <button type="submit" class="delete-address" onclick="return confirm('Bạn có chắc muốn xóa địa chỉ này không?')">Xóa</button>
+                                </form>
                             </div>
 
                         </div>
@@ -866,18 +877,20 @@ if ($diemCanLenHang < 0) {
                             <span onclick="closeAddressModal()">&times;</span>
                         </div>
 
-                        <form action="themdiachi.php" method="POST" class="address-form">
+                        <form action="themdiachi.php" method="POST" class="address-form" novalidate>
 
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                             <input type="text" name="ho_ten" placeholder="Họ tên" required>
-                            <input type="text" name="sdt" placeholder="Số điện thoại" required>
+                            <input type="text" name="sdt" placeholder="Số điện thoại" data-validate="phone" data-label="số điện thoại" required>
+                            <?php if (!empty($accountFieldErrors['address_sdt'])): ?><small class="field-error" data-error-for="sdt" aria-live="polite"><?php echo htmlspecialchars($accountFieldErrors['address_sdt'], ENT_QUOTES, 'UTF-8'); ?></small><?php endif; ?>
                             <input type="text" name="cong_ty" placeholder="Công ty">
                             <input type="text" name="dia_chi" placeholder="Địa chỉ" required>
 
                             <select name="quoc_gia" required>
-                                <option value="">-- Please Select --</option>
-                                <option value="Vietnam">Vietnam</option>
-                                <option value="Japan">Japan</option>
-                                <option value="Korea">Korea</option>
+                                <option value="">-- Chọn quốc gia --</option>
+                                <option value="Vietnam">Việt Nam</option>
+                                <option value="Japan">Nhật Bản</option>
+                                <option value="Korea">Hàn Quốc</option>
                             </select>
 
                             <input type="text" name="ma_zip" placeholder="Mã Zip">
@@ -905,20 +918,13 @@ if ($diemCanLenHang < 0) {
                             <span onclick="closeEditDefaultAddressModal()">&times;</span>
                         </div>
 
-                        <form action="capnhat_tk.php" method="POST" class="address-form">
+                        <form action="capnhat_tk.php" method="POST" class="address-form" novalidate>
 
                             <input type="text" name="full_name" value="<?php echo htmlspecialchars($fullName); ?>" placeholder="Họ tên" required>
-                            <input type="text" name="sdt" value="<?php echo htmlspecialchars($sdt); ?>" placeholder="Số điện thoại" required>
-                            <input type="text" name="cong_ty" placeholder="Công ty">
+                            <?php if (!empty($accountFieldErrors['edit_address_name'])): ?><small class="field-error" data-error-for="full_name" aria-live="polite"><?php echo htmlspecialchars($accountFieldErrors['edit_address_name'], ENT_QUOTES, 'UTF-8'); ?></small><?php endif; ?>
+                            <input type="text" name="sdt" value="<?php echo htmlspecialchars($sdt); ?>" placeholder="Số điện thoại" data-validate="phone" data-label="số điện thoại" required>
+                            <?php if (!empty($accountFieldErrors['edit_address_sdt'])): ?><small class="field-error" data-error-for="sdt" aria-live="polite"><?php echo htmlspecialchars($accountFieldErrors['edit_address_sdt'], ENT_QUOTES, 'UTF-8'); ?></small><?php endif; ?>
                             <input type="text" name="diachi" value="<?php echo htmlspecialchars($diachi); ?>" placeholder="Địa chỉ" required>
-
-                            <select name="quoc_gia" required>
-                                <option value="Vietnam">Vietnam</option>
-                                <option value="Japan">Japan</option>
-                                <option value="Korea">Korea</option>
-                            </select>
-
-                            <input type="text" name="ma_zip" placeholder="Mã Zip">
 
                             <label class="default-check">
                                 <input type="checkbox" checked disabled>

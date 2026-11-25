@@ -82,6 +82,7 @@ $recentOrders = mysqli_query($conn, "
             color: white;
             padding: 25px 20px;
         }
+
         .sidebar h2 {
             font-size: 30px;
             margin-bottom: 35px;

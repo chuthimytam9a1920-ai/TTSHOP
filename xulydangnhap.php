@@ -1,28 +1,32 @@
 <?php
-// Bắt đầu hoặc khôi phục một phiên làm việc (session) để lưu thông tin đăng nhập
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-// Kết nối tới cơ sở dữ liệu
-include "connect.php";
+require_once __DIR__ . '/connect.php';
+require_once __DIR__ . '/validate_helpers.php';
 
-// Lấy dữ liệu Email (loại bỏ khoảng trắng thừa) và Mật khẩu gửi lên từ Form đăng nhập
-$email = trim($_POST['email'] ?? '');
-$matkhau = $_POST['matkhau'] ?? '';
+$email = strtolower(trim($_POST['email'] ?? ''));
+$matkhau = (string)($_POST['matkhau'] ?? '');
 
-// Chuẩn bị câu lệnh SQL tìm kiếm tài khoản dựa vào email (sử dụng Prepared Statement chống SQL Injection)
-$sql = "SELECT * FROM users WHERE email = ?";
-$stmt = mysqli_prepare($conn, $sql);
-mysqli_stmt_bind_param($stmt, "s", $email);
-mysqli_stmt_execute($stmt);
+$loginSql = 'SELECT id, ho, ten, email, sdt, matkhau, ngaysinh, diachi
+    FROM users WHERE email = ? LIMIT 1';
 
-// Lấy kết quả trả về từ database
-$result = mysqli_stmt_get_result($stmt);
+if (!validate_personal_email($email) || $matkhau === '') {
+    $_SESSION['login_error'] = validation_message('login_credentials');
+    header('Location: dangnhap.php');
+    exit();
+}
 
-// Nếu tìm thấy một tài khoản trùng khớp với email đã nhập
-if ($user = mysqli_fetch_assoc($result)) {
-    // Kiểm tra tính hợp lệ của mật khẩu vừa nhập so với mật khẩu đã mã hóa (hash) lưu trong database
-    if (password_verify($matkhau, $user['matkhau'])) {
-        // Mật khẩu đúng: Lưu trạng thái đăng nhập và toàn bộ thông tin cá nhân của user vào $_SESSION
+try {
+    $statement = $conn->prepare($loginSql);
+    $statement->bind_param('s', $email);
+    $statement->execute();
+    $user = $statement->get_result()->fetch_assoc();
+    $statement->close();
+
+    if ($user && password_verify($matkhau, $user['matkhau'])) {
+        session_regenerate_id(true);
         $_SESSION['is_login'] = true;
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['user_ho'] = $user['ho'];
@@ -32,15 +36,23 @@ if ($user = mysqli_fetch_assoc($result)) {
         $_SESSION['user_ngaysinh'] = $user['ngaysinh'];
         $_SESSION['user_diachi'] = $user['diachi'];
 
-        // Chuyển hướng người dùng thẳng tiến tới trang quản lý thông tin tài khoản cá nhân
-        header("Location: taikhoan.php");
+        header('Location: taikhoan.php');
         exit();
     }
+} catch (Throwable $exception) {
+    error_log(sprintf(
+        '%s:%d: %s | mysqli_error=%s | SQL=%s',
+        __FILE__,
+        __LINE__,
+        $exception->getMessage(),
+        mysqli_error($conn),
+        $loginSql
+    ));
+    $_SESSION['login_error'] = validation_message('system');
+    header('Location: dangnhap.php');
+    exit();
 }
 
-// Nếu email không tồn tại hoặc mật khẩu bị sai: Tạo một thông báo lỗi lưu vào session
-$_SESSION['login_error'] = "Email hoặc mật khẩu không đúng!";
-// Chuyển hướng người dùng quay trở lại trang đăng nhập để thông báo lỗi và yêu cầu nhập lại
-header("Location: dangnhap.php");
+$_SESSION['login_error'] = validation_message('login_credentials');
+header('Location: dangnhap.php');
 exit();
-?>

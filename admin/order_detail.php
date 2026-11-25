@@ -75,6 +75,7 @@ function statusClass($status) {
 <head>
     <meta charset="UTF-8">
     <title>Chi tiết đơn hàng</title>
+
     <style>
         *{box-sizing:border-box}
         body{

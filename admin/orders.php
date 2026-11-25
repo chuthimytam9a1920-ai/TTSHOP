@@ -155,6 +155,7 @@ include "sidebar.php";
                             <th>Thao tác</th>
                         </tr>
                     </thead>
+
                     <tbody>
                         <?php if ($orders && mysqli_num_rows($orders) > 0) { ?>
                             <?php while ($row = mysqli_fetch_assoc($orders)) { ?>

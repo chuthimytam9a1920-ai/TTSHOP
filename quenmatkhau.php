@@ -1,8 +1,16 @@
-
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-// Nhận thông báo từ trang xử lý gửi email
+if (
+    !isset($_SESSION['reset_csrf_token']) ||
+    !is_string($_SESSION['reset_csrf_token']) ||
+    strlen($_SESSION['reset_csrf_token']) !== 64
+) {
+    $_SESSION['reset_csrf_token'] = bin2hex(random_bytes(32));
+}
+
 $success = $_SESSION['reset_success'] ?? '';
 $error = $_SESSION['reset_error'] ?? '';
 
@@ -33,8 +41,7 @@ unset($_SESSION['reset_success'], $_SESSION['reset_error']);
             <h1>ĐẶT LẠI MẬT KHẨU</h1>
 
             <p class="description">
-                Chúng tôi sẽ gửi cho bạn một email chứa
-                liên kết để đặt lại mật khẩu.
+                Nhập email đã đăng ký. Chúng tôi sẽ gửi mã xác minh để bạn đặt lại mật khẩu.
             </p>
 
             <?php if (!empty($success)): ?>
@@ -49,7 +56,8 @@ unset($_SESSION['reset_success'], $_SESSION['reset_error']);
                 </div>
             <?php endif; ?>
 
-            <form action="xulyquenmatkhau.php" method="POST">
+            <form action="xulyquenmatkhau.php" method="POST" novalidate>
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['reset_csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
 
                 <div class="form-group">
                     <label for="email">Email</label>
@@ -59,7 +67,8 @@ unset($_SESSION['reset_success'], $_SESSION['reset_error']);
                         id="email"
                         name="email"
                         placeholder="Nhập email của bạn"
-                        maxlength="254"
+                        data-label="email"
+                        maxlength="100"
                         autocomplete="email"
                         required
                     >
@@ -83,5 +92,7 @@ unset($_SESSION['reset_success'], $_SESSION['reset_error']);
         </div>
 
     </div>
+
+        <script src="validate.js"></script>
 </body>
 </html>

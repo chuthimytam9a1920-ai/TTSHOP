@@ -119,6 +119,7 @@ function showProducts($conn, $category_id, $title) {
                     </a>
 
                 </div> <?php endwhile; ?>
+
         <?php else: ?>
 
             <p class="empty-product">Đang cập nhật sản phẩm...</p>

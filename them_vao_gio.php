@@ -30,6 +30,7 @@ if(isset($_SESSION['cart'][$id])){
         'qty' => $qty
     ];
 }
+
 // Sau khi cập nhật giỏ hàng thành công, tự động chuyển hướng người dùng sang trang giỏ hàng (giohang.php)
 header("Location: giohang.php");
 exit();

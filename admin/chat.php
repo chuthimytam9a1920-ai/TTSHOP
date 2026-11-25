@@ -44,6 +44,7 @@ $customers = mysqli_query($conn, "
     GROUP BY customer_name
     ORDER BY last_id DESC
 ");
+
 /* Nếu chưa chọn khách thì lấy khách mới nhất */
 if ($customer === '' && $customers && mysqli_num_rows($customers) > 0) {
     $firstCustomer = mysqli_fetch_assoc($customers);

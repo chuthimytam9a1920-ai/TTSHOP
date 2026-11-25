@@ -54,9 +54,6 @@ foreach ($cart as $item) {
 <head>
     <meta charset="UTF-8">
     <title>Thanh toán - TT SHOP</title>
-
-
-    <link rel="stylesheet" href="./style.css?v=<?php echo time(); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
 
@@ -560,3 +557,4 @@ foreach ($cart as $item) {
 </div>
 </body>
 </html>
+

@@ -17,6 +17,7 @@ if ($order_id <= 0) {
     header("Location: taikhoan.php?tab=donhang");
     exit();
 }
+
 /* Chỉ cho huỷ đơn của chính user đang đăng nhập
    và chỉ huỷ khi trạng thái còn Chờ xử lý hoặc Chờ lấy hàng */
 $sql = "

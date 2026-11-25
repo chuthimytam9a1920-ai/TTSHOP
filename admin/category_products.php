@@ -180,6 +180,7 @@ include "sidebar.php";
 
                     <tbody>
                         <?php if ($result && mysqli_num_rows($result) > 0) { ?>
+
                             <?php while ($row = mysqli_fetch_assoc($result)) {
                                 $price = (int)$row['price'];
                                 $oldPrice = (int)$row['old_price'];

@@ -1,4 +1,8 @@
-<?php session_start(); ?>
+<?php
+session_start();
+$resetSuccess = $_SESSION['reset_success'] ?? '';
+unset($_SESSION['reset_success']);
+?>
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -19,24 +23,31 @@
 <section class="login-page">
     <div class="login-box">
         <h2>ĐĂNG NHẬP</h2>
+<?php if ($resetSuccess !== ''): ?>
+    <div class="success-msg">
+        <i class="fas fa-check-circle"></i>
+        <?php echo htmlspecialchars($resetSuccess, ENT_QUOTES, 'UTF-8'); ?>
+    </div>
+<?php endif; ?>
 <?php if (isset($_SESSION['login_error'])): ?>
     <div class="error-msg">
         <i class="fas fa-exclamation-circle"></i>
         <?php
-            echo $_SESSION['login_error'];
+            echo htmlspecialchars($_SESSION['login_error'], ENT_QUOTES, 'UTF-8');
             unset($_SESSION['login_error']);
         ?>
     </div>
 <?php endif; ?>
-        <form action="xulydangnhap.php" method="POST" autocomplete="off">
+        <form action="xulydangnhap.php" method="POST" autocomplete="off" novalidate>
 
             <div class="form-group">
                 <label for="email">Email <span>*</span></label>
-                <input type="email" id="email" name="email" placeholder="Nhập email của bạn" required autocomplete="none">
+                <input type="email" id="email" name="email" placeholder="Nhập email của bạn" data-validate="personal-email" data-label="email" required autocomplete="username">
             </div>
+
             <div class="form-group">
                 <label for="matkhau">Mật khẩu <span>*</span></label>
-                <input type="password" id="matkhau" name="matkhau" placeholder="Nhập mật khẩu" required autocomplete="new-password">
+                <input type="password" id="matkhau" name="matkhau" placeholder="Nhập mật khẩu" data-label="mật khẩu" required autocomplete="current-password">
             </div>
 
             <p class="forgot">
@@ -49,16 +60,6 @@
                 Bạn chưa có tài khoản? 
                 <a href="dangky.php">Đăng ký tại đây</a>
             </p>
-
-            <div class="social-login">
-                <button type="button" class="google">
-                    <i class="fab fa-google"></i> Google
-                </button>
-
-                <button type="button" class="facebook">
-                    <i class="fab fa-facebook"></i> Facebook
-                </button>
-            </div>
 
         </form>
     </div>

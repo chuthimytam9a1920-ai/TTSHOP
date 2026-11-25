@@ -73,7 +73,7 @@ if (isset($_SESSION['cart'])) {
                     <div class="user-info">
 
                         <p>
-                            Hi,
+                            Xin chào,
                             <b>
                                 <?php echo htmlspecialchars($_SESSION['user_name']); ?>
                             </b>
@@ -249,6 +249,7 @@ if (isset($_SESSION['cart'])) {
                     <li><a href="category.php?type=balo-vp">Balo văn phòng</a></li>
 
                 </ul>
+
             </li>
 
             <!-- MÁY TÍNH -->

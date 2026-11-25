@@ -1,4 +1,3 @@
-
 <?php
 
 // ==========================================
@@ -6,10 +5,54 @@
 // ==========================================
 
 use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
 
-// 1. Nạp thư viện PHPMailer
-require_once __DIR__ . '/vendor/autoload.php';
+$phpMailerAutoload = __DIR__ . '/vendor/autoload.php';
+try {
+    if (is_file($phpMailerAutoload)) {
+        require_once $phpMailerAutoload;
+    } else {
+        $phpMailerFiles = array(
+            __DIR__ . '/PHPMailer/src/Exception.php',
+            __DIR__ . '/PHPMailer/src/PHPMailer.php',
+            __DIR__ . '/PHPMailer/src/SMTP.php'
+        );
+        if (count(array_filter($phpMailerFiles, 'is_file')) === count($phpMailerFiles)) {
+            foreach ($phpMailerFiles as $phpMailerFile) {
+                require_once $phpMailerFile;
+            }
+        }
+    }
+} catch (Throwable $exception) {
+    error_log(sprintf('%s:%d: Unable to load PHPMailer: %s', __FILE__, __LINE__, $exception->getMessage()));
+}
+
+function resetMailConfig()
+{
+    $configFile = __DIR__ . '/config_mail.php';
+    if (!is_file($configFile)) {
+        return array();
+    }
+
+    try {
+        $config = require $configFile;
+    } catch (Throwable $exception) {
+        error_log(sprintf('%s:%d: Invalid mail configuration: %s', __FILE__, __LINE__, $exception->getMessage()));
+        return array();
+    }
+
+    return is_array($config) ? $config : array();
+}
+
+function isLocalResetDevelopment($config = null)
+{
+    if (!is_array($config)) {
+        $config = resetMailConfig();
+    }
+
+    $remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
+    return ($config['MAIL_DEV_MODE'] ?? false) === true
+        && in_array($remoteAddress, array('127.0.0.1', '::1'), true);
+}
 
 
 // ==========================================
@@ -18,10 +61,22 @@ require_once __DIR__ . '/vendor/autoload.php';
 
 function resetBaseUrl()
 {
-    // Dùng địa chỉ cố định, không lấy từ HTTP_HOST
-    // để tránh tạo liên kết khôi phục đến domain giả.
+    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '/TTSHOP-main/TTSHOP-main/xulyquenmatkhau.php';
+    $directory = str_replace('\\', '/', dirname($scriptName));
+    $path = $directory === '/' || $directory === '.' ? '' : $directory;
+    $host = $_SERVER['SERVER_NAME'] ?? 'localhost';
+    if (preg_match('/^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/i', $host) !== 1) {
+        $host = 'localhost';
+    }
 
-    return 'http://localhost/baitap';
+    $isHttps = !empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off';
+    $scheme = $isHttps ? 'https' : 'http';
+    $port = (int)($_SERVER['SERVER_PORT'] ?? ($isHttps ? 443 : 80));
+    if (($isHttps && $port !== 443) || (!$isHttps && $port !== 80)) {
+        $host .= ':' . $port;
+    }
+
+    return $scheme . '://' . $host . $path;
 }
 
 
@@ -29,31 +84,30 @@ function resetBaseUrl()
 // 3. HÀM GỬI EMAIL KHÔI PHỤC
 // ==========================================
 
-function sendResetEmail($email, $resetLink)
+function sendResetEmail($email, $resetCode)
 {
-    // File này đặt ngoài htdocs để bảo vệ mật khẩu SMTP
-    $configFile = 'C:/xampp/ttshop-mail-config.php';
-
-    if (!is_file($configFile)) {
-        error_log('TT SHOP: Missing SMTP configuration.');
+    if (!class_exists(PHPMailer::class)) {
+        error_log(sprintf(
+            '%s:%d: PHPMailer is missing. Expected vendor/autoload.php or PHPMailer/src files.',
+            __FILE__,
+            __LINE__
+        ));
         return false;
     }
 
-    $config = require $configFile;
-
+    $config = resetMailConfig();
+    $username = trim((string)($config['MAIL_USERNAME'] ?? ''));
+    $appPassword = (string)($config['MAIL_APP_PASSWORD'] ?? '');
     if (
-        !is_array($config) ||
-        empty($config['smtp_host']) ||
-        empty($config['smtp_username']) ||
-        empty($config['smtp_password'])
+        $username === '' ||
+        $appPassword === ''
     ) {
-        error_log('TT SHOP: Invalid SMTP configuration.');
+        error_log(sprintf('%s:%d: Gmail SMTP credentials are not configured.', __FILE__, __LINE__));
         return false;
     }
-
-    $mail = new PHPMailer(true);
 
     try {
+        $mail = new PHPMailer(true);
 
         // ==================================
         // CẤU HÌNH SMTP
@@ -61,13 +115,13 @@ function sendResetEmail($email, $resetLink)
 
         $mail->isSMTP();
 
-        $mail->Host = $config['smtp_host'];
+        $mail->Host = 'smtp.gmail.com';
 
         $mail->SMTPAuth = true;
 
-        $mail->Username = $config['smtp_username'];
+        $mail->Username = $username;
 
-        $mail->Password = $config['smtp_password'];
+        $mail->Password = $appPassword;
 
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
 
@@ -76,30 +130,26 @@ function sendResetEmail($email, $resetLink)
         $mail->CharSet = 'UTF-8';
 
         $mail->Timeout = 15;
+        $mail->SMTPDebug = 0;
 
         // ==================================
         // NGƯỜI GỬI VÀ NGƯỜI NHẬN
         // ==================================
 
-        $mail->setFrom(
-            $config['smtp_username'],
-            'TT SHOP'
-        );
+        $fromName = trim((string)($config['MAIL_FROM_NAME'] ?? 'TT SHOP'));
+        $mail->setFrom($username, $fromName !== '' ? $fromName : 'TT SHOP');
 
         $mail->addAddress($email);
 
         // ==================================
         // NỘI DUNG EMAIL
         // ==================================
+
         $mail->isHTML(true);
 
         $mail->Subject = 'Yêu cầu đặt lại mật khẩu - TT SHOP';
 
-        $safeLink = htmlspecialchars(
-            $resetLink,
-            ENT_QUOTES,
-            'UTF-8'
-        );
+        $safeCode = htmlspecialchars($resetCode, ENT_QUOTES, 'UTF-8');
 
         $mail->Body = '
         <!DOCTYPE html>
@@ -132,11 +182,8 @@ function sendResetEmail($email, $resetLink)
                     TT SHOP
                 </h1>
 
-                <h2 style="
-                    color:#166534;
-                    font-size:22px;
-                ">
-                    Đặt lại mật khẩu
+                <h2 style="color:#166534;font-size:22px">
+                    Mã xác minh đặt lại mật khẩu
                 </h2>
 
                 <p style="
@@ -152,56 +199,20 @@ function sendResetEmail($email, $resetLink)
                     line-height:1.8;
                     color:#444;
                 ">
-                    Chúng tôi đã nhận được yêu cầu
-                    đặt lại mật khẩu cho tài khoản
-                    TT SHOP của bạn.
+                    Chúng tôi đã nhận được yêu cầu đặt lại mật khẩu cho tài khoản TT SHOP của bạn.
                 </p>
 
-                <p style="
-                    font-size:15px;
-                    color:#444;
-                ">
-                    Nhấn vào nút bên dưới để
-                    tạo mật khẩu mới.
+                <p style="font-size:15px;color:#444">
+                    Quay lại trình duyệt đã gửi yêu cầu và nhập mã này trên trang đặt lại mật khẩu:
                 </p>
 
-                <div style="
-                    text-align:center;
-                    margin:35px 0;
-                ">
-
-                    <a href="' . $safeLink . '"
-                       style="
-                        display:inline-block;
-                        padding:15px 28px;
-                        background:#16a34a;
-                        color:white;
-                        text-decoration:none;
-                        border-radius:8px;
-                        font-weight:bold;
-                        font-size:15px;
-                       ">
-                        ĐẶT LẠI MẬT KHẨU
-                    </a>
-
+                <div style="text-align:center;margin:28px 0;padding:18px;background:#f0fdf4;border-radius:8px">
+                    <strong style="font-size:32px;letter-spacing:8px;color:#166534">' . $safeCode . '</strong>
                 </div>
 
-                <p style="
-                    font-size:14px;
-                    color:#666;
-                    line-height:1.7;
-                ">
-                    Liên kết chỉ có hiệu lực
-                    trong 30 phút và chỉ sử dụng
-                    được một lần.
-                </p>
-
-                <p style="
-                    font-size:14px;
-                    color:#666;
-                ">
-                    Nếu bạn không yêu cầu đổi
-                    mật khẩu, hãy bỏ qua email này.
+                <p style="font-size:14px;color:#666;line-height:1.7">
+                    Mã có hiệu lực trong 10 phút, chỉ dùng được một lần và tối đa 5 lần nhập.
+                    Nếu bạn không yêu cầu, hãy bỏ qua email này.
                 </p>
 
                 <hr style="
@@ -226,11 +237,9 @@ function sendResetEmail($email, $resetLink)
 
         // Nội dung thay thế cho ứng dụng không hỗ trợ HTML
         $mail->AltBody =
-            "TT SHOP - Đặt lại mật khẩu\n\n" .
-            "Chúng tôi đã nhận được yêu cầu đặt lại mật khẩu.\n" .
-            "Truy cập liên kết sau:\n" .
-            $resetLink . "\n\n" .
-            "Liên kết có hiệu lực trong 30 phút.\n" .
+            "TT SHOP - Mã xác minh đặt lại mật khẩu\n\n" .
+            "Mã xác minh của bạn: " . $resetCode . "\n\n" .
+            "Mã có hiệu lực trong 10 phút, chỉ dùng được một lần và tối đa 5 lần nhập.\n" .
             "Nếu bạn không yêu cầu, hãy bỏ qua email này.";
 
         // ==================================
@@ -241,11 +250,15 @@ function sendResetEmail($email, $resetLink)
 
         return true;
 
-    } catch (Exception $e) {
-
-        error_log(
-            'TT SHOP SMTP error: ' . $mail->ErrorInfo
-        );
+    } catch (Throwable $e) {
+        $mailError = isset($mail) ? $mail->ErrorInfo : '';
+        error_log(sprintf(
+            '%s:%d: Gmail SMTP send failed: %s | PHPMailer: %s',
+            __FILE__,
+            __LINE__,
+            $e->getMessage(),
+            $mailError
+        ));
 
         return false;
     }

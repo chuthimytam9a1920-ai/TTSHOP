@@ -24,6 +24,7 @@ if ($id > 0) {
     mysqli_stmt_bind_param($stmtDelete, "i", $id);
     mysqli_stmt_execute($stmtDelete);
 }
+
 header("Location: products.php");
 exit();
 ?>

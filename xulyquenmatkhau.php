@@ -1,155 +1,238 @@
-
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
+if (!defined('TT_SHOP_PASSWORD_RESET_FLOW')) {
+    define('TT_SHOP_PASSWORD_RESET_FLOW', true);
+}
 require_once __DIR__ . '/connect.php';
-require_once __DIR__ . '/reset_helpers.php';
+require_once __DIR__ . '/reset_helpersemail.php';
+require_once __DIR__ . '/validate_helpers.php';
 
-// Chỉ cho phép gửi yêu cầu bằng phương thức POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: quenmatkhau.php');
-    exit;
+    exit();
 }
 
-// Thông báo chung, tránh tiết lộ email có tài khoản hay không
-$successMessage = 'Nếu email đã được đăng ký, chúng tôi sẽ gửi liên kết đặt lại mật khẩu đến hộp thư của bạn. Vui lòng kiểm tra cả thư mục Spam.';
+$resetRequestStartedAt = microtime(true);
 
-function redirectReset($type, $message)
+function redirectReset($type, $message, $recordRequest = false, $destination = 'quenmatkhau.php')
 {
-    $_SESSION[$type] = $message;
-    header('Location: quenmatkhau.php');
-    exit;
-}
+    global $resetRequestStartedAt;
 
-// 1. Nhận và kiểm tra email
-$email = trim($_POST['email'] ?? '');
-
-if (
-    empty($email) ||
-    strlen($email) > 254 ||
-    !filter_var($email, FILTER_VALIDATE_EMAIL)
-) {
-    redirectReset(
-        'reset_error',
-        'Vui lòng nhập địa chỉ email hợp lệ.'
-    );
-}
-
-// 2. Kiểm tra số lần gửi yêu cầu trong một session
-$now = time();
-$lastRequest = $_SESSION['last_reset_request'] ?? 0;
-
-if ($now - $lastRequest < 60) {
-    redirectReset(
-        'reset_error',
-        'Vui lòng chờ 60 giây trước khi gửi yêu cầu tiếp theo.'
-    );
-}
-
-$_SESSION['last_reset_request'] = $now;
-
-try {
-
-    // 3. Tìm tài khoản theo email
-    $sql = "SELECT id, email
-            FROM users
-            WHERE email = ?
-            LIMIT 1";
-
-    $stmt = $conn->prepare($sql);
-
-    if (!$stmt) {
-        throw new Exception('Không thể chuẩn bị truy vấn.');
+    $minimumDuration = 0.8;
+    if (isset($resetRequestStartedAt)) {
+        $remaining = $minimumDuration - (microtime(true) - $resetRequestStartedAt);
+        if ($remaining > 0) {
+            usleep((int)($remaining * 1000000));
+        }
     }
 
-    $stmt->bind_param('s', $email);
-    $stmt->execute();
+    if ($recordRequest) {
+        $_SESSION['last_reset_request'] = time();
+    }
 
-    $result = $stmt->get_result();
-    $user = $result->fetch_assoc();
-    $stmt->close();
+    unset($_SESSION['reset_success'], $_SESSION['reset_error']);
+    $_SESSION[$type] = $message;
+    header('Location: ' . $destination);
+    exit();
+}
 
-    // 4. Nếu email không tồn tại, vẫn hiện thông báo chung
+$csrfToken = $_POST['csrf_token'] ?? '';
+$storedCsrfToken = $_SESSION['reset_csrf_token'] ?? '';
+if (
+    !is_string($csrfToken) ||
+    !is_string($storedCsrfToken) ||
+    $csrfToken === '' ||
+    !hash_equals($storedCsrfToken, $csrfToken)
+) {
+    redirectReset('reset_error', validation_message('reset_csrf_expired'));
+}
+unset($_SESSION['reset_csrf_token']);
+
+$emailInput = $_POST['email'] ?? '';
+$email = is_string($emailInput) ? strtolower(trim($emailInput)) : '';
+if ($email === '' || strlen($email) > 100 || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+    unset($_SESSION['reset_pending_email'], $_SESSION['reset_dev_otp'], $_SESSION['reset_dev_link']);
+    redirectReset('reset_error', validation_message('email_invalid'));
+}
+
+$now = time();
+$requestHistory = $_SESSION['reset_request_history'] ?? array();
+if (!is_array($requestHistory)) {
+    $requestHistory = array();
+}
+$cutoff = $now - 900;
+$requestHistory = array_values(array_filter($requestHistory, function ($timestamp) use ($cutoff) {
+    return is_int($timestamp) && $timestamp >= $cutoff;
+}));
+
+$currentSql = '';
+$userId = 0;
+$tokenHash = '';
+$transactionStarted = false;
+
+try {
+    $currentSql = 'DELETE FROM password_resets WHERE expires_at < NOW()';
+    $cleanupExpired = $conn->prepare($currentSql);
+    $cleanupExpired->execute();
+    $cleanupExpired->close();
+
+    if (count($requestHistory) >= 5) {
+        $_SESSION['reset_request_history'] = $requestHistory;
+        unset($_SESSION['reset_pending_email']);
+        redirectReset('reset_error', validation_message('reset_too_many_requests'), true);
+    }
+    $requestHistory[] = $now;
+    $_SESSION['reset_request_history'] = $requestHistory;
+    $previousPendingEmail = $_SESSION['reset_pending_email'] ?? '';
+    $preserveDevOtp = is_string($previousPendingEmail)
+        && $previousPendingEmail === $email
+        && isLocalResetDevelopment(resetMailConfig());
+    if (!$preserveDevOtp) {
+        unset($_SESSION['reset_dev_otp'], $_SESSION['reset_dev_link']);
+    }
+    $_SESSION['reset_pending_email'] = $email;
+
+    $conn->begin_transaction();
+    $transactionStarted = true;
+
+    $currentSql = 'SELECT id, email FROM users WHERE email = ? LIMIT 1 FOR UPDATE';
+    $userStatement = $conn->prepare($currentSql);
+    $userStatement->bind_param('s', $email);
+    $userStatement->execute();
+    $user = $userStatement->get_result()->fetch_assoc();
+    $userStatement->close();
+
     if (!$user) {
-        redirectReset('reset_success', $successMessage);
+        $conn->commit();
+        $transactionStarted = false;
+        unset($_SESSION['reset_dev_otp'], $_SESSION['reset_dev_link']);
+        redirectReset(
+            'reset_success',
+            validation_message('reset_email_sent'),
+            true,
+            'datlaimatkhau.php'
+        );
     }
 
     $userId = (int)$user['id'];
+    $currentSql = 'SELECT id FROM password_resets
+        WHERE user_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 60 SECOND)
+        LIMIT 1 FOR UPDATE';
+    $recentStatement = $conn->prepare($currentSql);
+    $recentStatement->bind_param('i', $userId);
+    $recentStatement->execute();
+    $recentStatement->store_result();
+    $hasRecentRequest = $recentStatement->num_rows > 0;
+    $recentStatement->close();
 
-    // 5. Tạo mã bảo mật ngẫu nhiên
-    $token = bin2hex(random_bytes(32));
-
-    // Chỉ lưu hash, không lưu token gốc
-    $tokenHash = hash('sha256', $token);
-
-    // Hết hạn sau 30 phút
-    $expiresAt = date('Y-m-d H:i:s', time() + 1800);
-
-    // 6. Xóa các mã khôi phục cũ của tài khoản
-    $deleteSql = "DELETE FROM password_resets
-                  WHERE user_id = ?";
-
-    $deleteStmt = $conn->prepare($deleteSql);
-    $deleteStmt->bind_param('i', $userId);
-    $deleteStmt->execute();
-    $deleteStmt->close();
-
-    // 7. Lưu mã mới
-    $insertSql = "INSERT INTO password_resets
-                  (user_id, token_hash, expires_at)
-                  VALUES (?, ?, ?)";
-
-    $insertStmt = $conn->prepare($insertSql);
-
-    $insertStmt->bind_param(
-        'iss',
-        $userId,
-        $tokenHash,
-        $expiresAt
-    );
-
-    if (!$insertStmt->execute()) {
-        throw new Exception('Không thể lưu mã khôi phục.');
-    }
-
-    $insertStmt->close();
-
-    // 8. Tạo liên kết đặt lại mật khẩu
-    $baseUrl = resetBaseUrl();
-
-    $resetLink = $baseUrl .
-        '/datlaimatkhau.php?token=' .
-        urlencode($token);
-
-    // 9. Gửi email cho khách hàng
-    $sent = sendResetEmail(
-        $user['email'],
-        $resetLink
-    );
-
-    if (!$sent) {
-        // Vô hiệu hóa mã nếu gửi email thất bại
-        $cleanup = $conn->prepare(
-            "DELETE FROM password_resets
-             WHERE user_id = ? AND token_hash = ?"
+    if ($hasRecentRequest) {
+        $conn->commit();
+        $transactionStarted = false;
+        redirectReset(
+            'reset_success',
+            validation_message('reset_email_sent'),
+            true,
+            'datlaimatkhau.php'
         );
-
-        $cleanup->bind_param('is', $userId, $tokenHash);
-        $cleanup->execute();
-        $cleanup->close();
-
-        error_log('TT SHOP: Failed to send password reset email.');
     }
-    // 10. Thông báo chung
-    redirectReset('reset_success', $successMessage);
 
-} catch (Throwable $e) {
+    unset($_SESSION['reset_dev_otp'], $_SESSION['reset_dev_link']);
+    $currentSql = 'DELETE FROM password_resets WHERE user_id = ?';
+    $deleteStatement = $conn->prepare($currentSql);
+    $deleteStatement->bind_param('i', $userId);
+    $deleteStatement->execute();
+    $deleteStatement->close();
 
-    // Ghi lỗi vào log của PHP, không hiển thị chi tiết cho khách
-    error_log('TT SHOP password reset: ' . $e->getMessage());
+    $otp = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    $sessionId = session_id();
+    if ($sessionId === '') {
+        throw new RuntimeException('Không tạo được phiên để xác minh mã đặt lại mật khẩu.');
+    }
+    $tokenHash = hash_hmac('sha256', $otp, $sessionId);
+    $attempts = 0;
+
+    $currentSql = 'INSERT INTO password_resets (user_id, token_hash, expires_at, attempts)
+        VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE), ?)';
+    $insertStatement = $conn->prepare($currentSql);
+    $insertStatement->bind_param('isi', $userId, $tokenHash, $attempts);
+    if ($insertStatement->execute() !== true || $insertStatement->affected_rows !== 1) {
+        throw new RuntimeException('Không lưu được mã xác minh đặt lại mật khẩu.');
+    }
+    $insertStatement->close();
+
+    $conn->commit();
+    $transactionStarted = false;
+
+    if (isLocalResetDevelopment(resetMailConfig())) {
+        $_SESSION['reset_dev_otp'] = $otp;
+        $_SESSION['reset_dev_link'] = resetBaseUrl() . '/datlaimatkhau.php';
+        redirectReset(
+            'reset_success',
+            validation_message('reset_email_sent'),
+            true,
+            'datlaimatkhau.php'
+        );
+    }
+
+    if (!sendResetEmail($user['email'], $otp)) {
+        $currentSql = 'DELETE FROM password_resets WHERE user_id = ? AND token_hash = ?';
+        try {
+            $deleteFailedOtp = $conn->prepare($currentSql);
+            $deleteFailedOtp->bind_param('is', $userId, $tokenHash);
+            $deleteFailedOtp->execute();
+            $deleteFailedOtp->close();
+        } catch (Throwable $cleanupException) {
+            error_log(sprintf(
+                '%s:%d: Unable to remove unsent OTP: %s | SQL=%s',
+                __FILE__,
+                __LINE__,
+                $cleanupException->getMessage(),
+                $currentSql
+            ));
+        }
+
+        unset($_SESSION['reset_pending_email']);
+        error_log(sprintf('%s:%d: Reset OTP email delivery failed for user_id=%d.', __FILE__, __LINE__, $userId));
+        redirectReset('reset_error', validation_message('reset_email_failed'), true);
+    }
 
     redirectReset(
-        'reset_error',
-        'Hệ thống tạm thời không thể xử lý yêu cầu. Vui lòng thử lại sau.'
+        'reset_success',
+        validation_message('reset_email_sent'),
+        true,
+        'datlaimatkhau.php'
     );
+} catch (Throwable $exception) {
+    if ($transactionStarted) {
+        try {
+            $conn->rollback();
+        } catch (Throwable $rollbackException) {
+            error_log(sprintf('%s:%d: Rollback failed: %s', __FILE__, __LINE__, $rollbackException->getMessage()));
+        }
+    }
+
+    if (!$transactionStarted && $userId > 0 && $tokenHash !== '') {
+        try {
+            $deleteOtpSql = 'DELETE FROM password_resets WHERE user_id = ? AND token_hash = ?';
+            $deleteOtpStatement = $conn->prepare($deleteOtpSql);
+            $deleteOtpStatement->bind_param('is', $userId, $tokenHash);
+            $deleteOtpStatement->execute();
+            $deleteOtpStatement->close();
+        } catch (Throwable $cleanupException) {
+            error_log(sprintf('%s:%d: OTP cleanup failed: %s', __FILE__, __LINE__, $cleanupException->getMessage()));
+        }
+    }
+
+    unset($_SESSION['reset_pending_email']);
+    error_log(sprintf(
+        '%s:%d: %s | SQL=%s',
+        __FILE__,
+        __LINE__,
+        $exception->getMessage(),
+        $currentSql
+    ));
+    redirectReset('reset_error', validation_message('reset_system'), true);
 }

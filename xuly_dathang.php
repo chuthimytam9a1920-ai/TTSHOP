@@ -4,6 +4,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 include "connect.php";
+require_once __DIR__ . '/validate_helpers.php';
 
 if (!isset($_SESSION['is_login']) || $_SESSION['is_login'] !== true) {
     header("Location: dangky.php");
@@ -20,7 +21,21 @@ if (empty($cart) || empty($checkout)) {
 
 $user_id = $_SESSION['user_id'] ?? 0;
 
-$phuong_thuc = $_POST['phuong_thuc'] ?? 'COD';
+if (!is_valid_vn_phone($sdt)) {
+    $_SESSION['checkout_error'] = phone_validation_message();
+    $_SESSION['checkout_old'] = $checkout;
+    header('Location: thanhtoan.php');
+    exit();
+}
+
+$allowedPayments = array('COD', 'VNPAY', 'MOMO', 'ZALOPAY', 'SHOPEEPAY');
+$phuong_thuc = $_POST['phuong_thuc'] ?? '';
+if (!in_array($phuong_thuc, $allowedPayments, true)) {
+    $_SESSION['checkout_error'] = validation_message('payment_required');
+    header('Location: phuongthucthanhtoan.php');
+    exit();
+}
+
 $phi_van_chuyen = 30000;
 
 $ho_ten     = $checkout['ho_ten'] ?? '';
@@ -111,6 +126,7 @@ try {
     if (!$stmtDetail) {
         throw new Exception("Lỗi prepare chitiet_donhang: " . mysqli_error($conn));
     }
+
     foreach ($cart as $item) {
         $product_id   = (int)($item['id'] ?? 0);
         $ten_san_pham = $item['name'] ?? '';
@@ -146,9 +162,12 @@ try {
     unset($_SESSION['cart']);
     unset($_SESSION['checkout_info']);
 
-} catch (Exception $e) {
+} catch (Throwable $e) {
     mysqli_rollback($conn);
-    die("Đặt hàng thất bại: " . $e->getMessage());
+    error_log(sprintf('%s:%d: %s', __FILE__, __LINE__, $e->getMessage()));
+    $_SESSION['checkout_error'] = 'Hệ thống đang bận, vui lòng thử lại sau.';
+    header('Location: thanhtoan.php');
+    exit();
 }
 ?>
 <!DOCTYPE html>
@@ -243,7 +262,7 @@ try {
     </p>
 
     <button class="ok-btn" onclick="window.location.href='taikhoan.php'">
-        OK
+        Đồng ý
     </button>
 
 </div>

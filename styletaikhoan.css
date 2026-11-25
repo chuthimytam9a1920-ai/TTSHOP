@@ -7,6 +7,13 @@ body {
     font-family: "Poppins", Arial, Helvetica, sans-serif;
 }
 
+.field-error {
+    display: block;
+    margin-top: 4px;
+    color: #b91c1c;
+    font-size: 0.875rem;
+}
+
 /* NỀN */
 .account-page {
     background: #e4f7ec;
@@ -23,6 +30,7 @@ body {
     max-width: 1650px;
     margin: 0 auto;
 }
+
 /* KHUNG TRẮNG TỔNG */
 .account-container {
     width: 91%;
@@ -842,9 +850,19 @@ body {
     white-space: nowrap;
 }
 
+.address-delete-form {
+    display: inline-flex;
+    margin: 0;
+}
+
 .delete-address {
     color: red;
     text-decoration: none;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
 }
 
 .delete-address:hover,

@@ -19,6 +19,7 @@ if ($id > 0) {
             unlink($imagePath);
         }
     }
+
     $stmtDelete = mysqli_prepare($conn, "DELETE FROM category_products WHERE id = ?");
     mysqli_stmt_bind_param($stmtDelete, "i", $id);
     mysqli_stmt_execute($stmtDelete);

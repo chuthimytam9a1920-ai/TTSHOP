@@ -11,6 +11,7 @@ $id = $_GET['id'] ?? '';
 if ($id !== '' && isset($_SESSION['cart'][$id])) {
     unset($_SESSION['cart'][$id]);
 }
+
 // Sau khi xóa xong, lập tức chuyển hướng người dùng quay trở lại trang giỏ hàng (giohang.php)
 header("Location: giohang.php");
 exit();

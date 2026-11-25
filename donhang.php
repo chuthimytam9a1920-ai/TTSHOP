@@ -34,6 +34,7 @@ $result = mysqli_stmt_get_result($stmt);
 ?>
 <div class="order-box">
     <h1>ĐƠN HÀNG CỦA BẠN</h1>
+
     <?php if (mysqli_num_rows($result) == 0) { ?>
 
         <div class="empty-order">

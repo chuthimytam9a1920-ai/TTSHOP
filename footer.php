@@ -17,8 +17,9 @@ if ($chatCustomerName == '') {
             <p class="footer-title">TT SHOP - Website thương mại điện tử đồ dùng học tập</p>
             <p>Cửa hàng chuyên cung cấp văn phòng phẩm, dụng cụ học tập, balo, sổ tay và máy tính cầm tay.</p>
 
-            <form action="dangky.php" method="GET" class="email-box">
-                <input type="email" name="email" placeholder="Nhập địa chỉ email" required>
+            <form action="dangky.php" method="GET" class="email-box" novalidate>
+                <input type="email" name="email" placeholder="Nhập địa chỉ email" data-validate="personal-email" data-label="địa chỉ email" required>
+                <small class="field-error" aria-live="polite"></small>
                 <button type="submit">Đăng ký</button>
             </form>
         </div>
@@ -223,6 +224,7 @@ if ($chatCustomerName == '') {
 }
 </style>
 
+<script src="validate.js"></script>
 <script>
 // Nhận tên khách hàng được truyền an toàn từ biến PHP sang JavaScript
 const chatCustomerName = "<?php echo htmlspecialchars($chatCustomerName, ENT_QUOTES); ?>";
@@ -325,6 +327,7 @@ function handleChatEnter(event) {
         sendMessage();
     }
 }
+
 // Đồng hồ chạy ngầm: Cứ mỗi 3000ms (3 giây), nếu hộp chat đang mở thì tự động tải tin nhắn mới một lần (Realtime)
 setInterval(function() {
     const box = document.getElementById("chatBox");

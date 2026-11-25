@@ -73,6 +73,7 @@ $customers = mysqli_query($conn, "
 
             ELSE 'Member'
         END AS hang_khach
+
     FROM users
     LEFT JOIN donhang ON donhang.user_id = users.id
     $whereUser

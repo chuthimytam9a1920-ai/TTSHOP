@@ -19,8 +19,10 @@ if (empty($cart) || empty($checkout)) {
 }
 
 $user_id = $_SESSION['user_id'] ?? 0;
+
 $phuong_thuc = $_POST['phuong_thuc'] ?? 'COD';
 $phi_van_chuyen = 30000;
+
 $ho_ten     = $checkout['ho_ten'] ?? '';
 $sdt        = $checkout['sdt'] ?? '';
 $dia_chi    = $checkout['dia_chi'] ?? '';

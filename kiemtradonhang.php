@@ -8,16 +8,22 @@ include "connect.php";
 $checkType = $_POST['check_type'] ?? 'phone';
 $keyword   = trim($_POST['keyword'] ?? '');
 $orders    = [];
+$emailError = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $keyword !== '') {
 
     if ($checkType === 'email') {
-        $sql = "
-            SELECT *
-            FROM donhang
-            WHERE email = ?
-            ORDER BY id DESC
-        ";
+        $keyword = strtolower($keyword);
+        if (preg_match('/^(?=[a-z0-9.]*[a-z])(?!\.)(?!.*\.\.)[a-z0-9.]{5,29}[a-z0-9]@gmail\.com$/', $keyword) !== 1) {
+            $emailError = 'Vui lòng nhập Gmail hợp lệ theo định dạng email tài khoản TT SHOP.';
+        } else {
+            $sql = "
+                SELECT *
+                FROM donhang
+                WHERE email = ?
+                ORDER BY id DESC
+            ";
+        }
     } else {
         $sql = "
             SELECT *
@@ -27,14 +33,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $keyword !== '') {
         ";
     }
 
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, "s", $keyword);
-    mysqli_stmt_execute($stmt);
+    if ($emailError === '') {
+        $stmt = mysqli_prepare($conn, $sql);
+        mysqli_stmt_bind_param($stmt, "s", $keyword);
+        mysqli_stmt_execute($stmt);
 
-    $result = mysqli_stmt_get_result($stmt);
+        $result = mysqli_stmt_get_result($stmt);
 
-    while ($row = mysqli_fetch_assoc($result)) {
-        $orders[] = $row;
+        while ($row = mysqli_fetch_assoc($result)) {
+            $orders[] = $row;
+        }
     }
 }
 ?>
@@ -210,9 +218,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $keyword !== '') {
                 type="<?php echo $checkType === 'email' ? 'email' : 'text'; ?>" 
                 placeholder="<?php echo $checkType === 'email' ? 'email@gmail.com' : '0909 xxx xxx'; ?>"
                 autocomplete="<?php echo $checkType === 'email' ? 'email' : 'tel'; ?>"
+                <?php if ($checkType === 'email') { ?>
+                    pattern="(?=[a-zA-Z0-9.]*[a-zA-Z])(?!\.)(?!.*\.\.)[a-zA-Z0-9.]{5,29}[a-zA-Z0-9]@gmail\.com"
+                    title="Email phải là Gmail hợp lệ; phần trước @ dài 6–30 ký tự, có ít nhất một chữ cái và không có dấu chấm ở đầu/cuối hoặc hai dấu chấm liên tiếp."
+                    maxlength="40"
+                <?php } ?>
                 value="<?php echo htmlspecialchars($keyword); ?>"
                 required
             >
+            <?php if ($emailError !== '') { ?>
+                <p class="error-msg"><?php echo htmlspecialchars($emailError); ?></p>
+            <?php } ?>
+
             <div class="captcha-box">
                 <div class="captcha-left">
                     <label style="display:flex;align-items:center;gap:10px;margin:0;">
@@ -390,12 +407,18 @@ function changeCheckType(type) {
         input.type = "email";
         input.placeholder = "email@gmail.com";
         input.autocomplete = "email";
+            input.pattern = "(?=[a-zA-Z0-9.]*[a-zA-Z])(?!\\.)(?!.*\\.\\.)[a-zA-Z0-9.]{5,29}[a-zA-Z0-9]@gmail\\.com";
+            input.title = "Email phải là Gmail hợp lệ; phần trước @ dài 6–30 ký tự, có ít nhất một chữ cái và không có dấu chấm ở đầu/cuối hoặc hai dấu chấm liên tiếp.";
+            input.maxLength = 40;
         input.value = "";
     } else {
         label.innerText = "Số điện thoại:";
         input.type = "text";
         input.placeholder = "0909 xxx xxx";
         input.autocomplete = "tel";
+            input.removeAttribute("pattern");
+            input.removeAttribute("title");
+            input.removeAttribute("maxlength");
         input.value = "";
     }
 }

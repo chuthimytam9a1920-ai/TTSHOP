@@ -19,6 +19,7 @@
     color: white;
     box-shadow: 0 15px 35px rgba(0,0,0,0.25);
 }
+
 .register-box h2 {
     text-align: center;
     font-size: 30px;
@@ -109,6 +110,35 @@
     color: rgba(255,255,255,0.5);
 }
 
+.password-input-wrap {
+    position: relative;
+    width: 100%;
+}
+
+.password-input-wrap input {
+    padding-right: 42px;
+}
+
+.password-toggle {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    transform: translateY(-50%);
+    z-index: 1;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    background: transparent;
+    color: #d8f7e8;
+    cursor: pointer;
+    font-size: 17px;
+}
+
+.password-toggle:focus-visible {
+    outline: 2px solid #ffdd00;
+    border-radius: 4px;
+}
+
 /* 4. Nút đăng ký và mạng xã hội */
 .register-btn {
     width: 100%;
@@ -145,30 +175,6 @@
 .login-text a:hover {
     text-decoration: underline;
 }
-
-.social-login {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-}
-
-.social-btn {
-    flex: 1;
-    max-width: 220px;
-    height: 50px;
-    border-radius: 6px;
-    color: white;
-    text-decoration: none;
-    font-weight: 700;
-    font-size: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-}
-
-.google { background: #ea4335; }
-.facebook { background: #4267b2; }
 
 /* 5. Thông báo lỗi */
 .error-msg {
