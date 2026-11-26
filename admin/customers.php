@@ -142,6 +142,7 @@ try {
     // Công thức phân hạng do membership_calculate() xử lý, không sao chép ngưỡng SQL.
     $sql = "SELECT u.id, u.ho, u.ten, u.email, u.sdt, u.diachi, u.created_at,
                 COALESCE(o.so_lan_mua, 0) AS so_lan_mua,
+                (SELECT COALESCE(MAX(mu.target_rank),0) FROM membership_upgrades mu WHERE mu.user_id=u.id AND mu.status='PAID') AS paid_rank,
                 COALESCE(o.tong_da_mua, 0) AS tong_da_mua,
                 COALESCE(h.used_count, 0) AS used_count,
                 COALESCE(h.delivered_count, 0) AS delivered_count,
@@ -180,7 +181,7 @@ try {
     $sql .= ' ORDER BY u.id DESC';
     $rows = ac_query($conn, $sql, $types, $params);
     foreach ($rows as $row) {
-        $row['member'] = membership_calculate((int)$row['so_lan_mua'], (int)$row['tong_da_mua']);
+        $row['member'] = membership_calculate((int)$row['so_lan_mua'], (int)$row['tong_da_mua'], (int)$row['paid_rank']);
         if ($rankFilter !== 'all' && $row['member']['tier'] !== $rankFilter) continue;
         $customers[] = $row;
         if ($detailId === (int)$row['id']) $detailCustomer = $row;

@@ -26,6 +26,7 @@ $menuPages = [
     'order_detail.php' => 'orders',
 
     'customers.php' => 'customers',
+    'membership_dashboard.php' => 'membership_dashboard',
 
     'vouchers.php' => 'vouchers',
 
@@ -80,6 +81,9 @@ if (isset($conn) && $conn instanceof mysqli) {
         <p class="nav-heading">KHÁCH HÀNG</p>
         <a href="customers.php" class="<?php echo ($activePage === 'customers') ? 'active' : ''; ?>">
             <span class="nav-icon">◎</span><span>Khách hàng</span>
+        </a>
+        <a href="membership_dashboard.php" class="<?= $activePage === 'membership_dashboard' ? 'active' : '' ?>">
+            <span class="nav-icon">↗</span><span>Nâng hạng thành viên</span>
         </a>
         <a href="chat.php" class="<?php echo ($activePage === 'chat') ? 'active' : ''; ?>">
             <span class="nav-icon">✉</span><span>Tin nhắn</span>

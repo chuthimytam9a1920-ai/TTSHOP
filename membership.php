@@ -72,7 +72,8 @@ function membership_can_use(
 
 function membership_calculate(
     int $orders,
-    int $spend
+    int $spend,
+    int $paidRank = 0
 ): array
 {
     $orders = max(0, $orders);
@@ -98,7 +99,8 @@ function membership_calculate(
         }
     }
 
-    $rank = membership_rank($tier);
+    $rank = max(membership_rank($tier), min(count($tiers) - 1, max(0, $paidRank)));
+    $tier = $tiers[$rank];
 
     // Xác định hạng tiếp theo
 
@@ -157,7 +159,9 @@ function membership_get(
             COALESCE(
                 SUM(tong_cong),
                 0
-            ) AS tong_chi_tieu
+            ) AS tong_chi_tieu,
+            (SELECT COALESCE(MAX(target_rank),0) FROM membership_upgrades
+             WHERE user_id = ? AND status = 'PAID') AS paid_rank
 
         FROM donhang
 
@@ -177,7 +181,7 @@ function membership_get(
     try {
 
         if (
-            !$stmt->bind_param('i', $userId)
+            !$stmt->bind_param('ii', $userId, $userId)
             ||
             !$stmt->execute()
         ) {
@@ -188,7 +192,7 @@ function membership_get(
         }
 
         if (
-            !$stmt->bind_result($orders, $spend)
+            !$stmt->bind_result($orders, $spend, $paidRank)
             ||
             $stmt->fetch() !== true
         ) {
@@ -200,7 +204,8 @@ function membership_get(
 
         return membership_calculate(
             (int)$orders,
-            (int)$spend
+            (int)$spend,
+            (int)$paidRank
         );
 
     } finally {

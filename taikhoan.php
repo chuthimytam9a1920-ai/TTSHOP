@@ -771,7 +771,7 @@ try {
                                 <strong class="tk-eligible">Bạn đã đạt hạng Diamond – hạng cao nhất.</strong>
                                 <div class="tk-track" style="margin-top:12px"><span style="width:100%"></span></div>
                             <?php endif; ?>
-                            <p class="tk-note">Chi tiêu được tính từ tổng thanh toán của đơn đã giao. Hiện chưa có chức năng đổi điểm lấy voucher.</p>
+                            <p class="tk-note">Chi tiêu được tính từ tổng thanh toán của đơn đã giao. Bạn cũng có thể mua hạng bằng thanh toán QR. Phí nâng hạng không tính vào chi tiêu mua hàng.</p>
                         </div>
                         <?php endif; ?>
 
@@ -784,7 +784,7 @@ try {
                         <?php endif; ?>
 
                         <div class="member-btn-wrap">
-                            <button type="button" class="member-btn">NÂNG CẤP CÁC HẠNG </button>
+                            <a class="member-btn" style="display:inline-block;text-decoration:none" href="nang_hang.php">NÂNG CẤP CÁC HẠNG</a>
                         </div>
 
                         <?php $selectedTier = $member['tier'] ?? 'Member'; ?>
