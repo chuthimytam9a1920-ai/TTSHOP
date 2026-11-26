@@ -868,3 +868,73 @@ body {
         font-size: 16px;
     }
 }
+
+/* =========================================
+   ĐỒNG BỘ FONT CHỮ GIỎ HÀNG
+   ========================================= */
+
+.cart-wrapper {
+    font-family: Arial, sans-serif;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tiêu đề giỏ hàng */
+.cart-title {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.4;
+}
+
+/* Tên sản phẩm */
+.cart-name h3 {
+    font-weight: 600;
+}
+
+/* Trạng thái còn hàng */
+.cart-wrapper .stock {
+    font-weight: 500;
+}
+
+/* Giá và thành tiền sản phẩm */
+.cart-price,
+.cart-total-item {
+    font-weight: 700;
+}
+
+/* Phần trăm giảm giá */
+.cart-item .discount {
+    font-weight: 600;
+}
+
+/* Nút tăng giảm số lượng */
+.qty-box button,
+.qty-box span {
+    font-weight: 600;
+}
+
+/* Tổng tiền thanh toán */
+.cart-summary h2 {
+    font-weight: 700;
+}
+
+.cart-summary h2 span,
+.cart-summary .summary-total {
+    font-weight: 700;
+}
+
+/* Đồng bộ font các ô nhập liệu và nút bấm */
+.cart-wrapper input,
+.cart-wrapper textarea,
+.cart-wrapper button,
+.cart-wrapper select {
+    font-family: Arial, sans-serif;
+}
+
+@media (max-width: 768px) {
+    .cart-title {
+        font-size: 28px;
+    }
+}

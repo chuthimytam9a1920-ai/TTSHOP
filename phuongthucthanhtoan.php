@@ -174,20 +174,24 @@ try {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Phương thức thanh toán - TT SHOP</title>
+    <link rel="stylesheet" href="./style.css?v=10">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
           * { box-sizing: border-box; }
-        body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #333; background: #fff; }
-        .checkout-page { display: grid; grid-template-columns: minmax(0,58fr) minmax(0,42fr); min-height: 100vh; }
+        body { margin: 0; padding-top: var(--checkout-header-height, 140px); font-family: Arial, Helvetica, sans-serif; font-weight: 400; color: #333; background: #fff; }
+        /* Header dùng chung, cố định khi cuộn trang. */
+        body > header { position: fixed; top: 0; left: 0; width: 100%; z-index: 999999; }
+        body > header .sub-menu { transition: none; }
+        .checkout-page input, .checkout-page button { font-family: Arial, Helvetica, sans-serif; }
+        .checkout-page { display: grid; grid-template-columns: minmax(0,58fr) minmax(0,42fr); min-height: calc(100vh - var(--checkout-header-height, 140px)); }
         .checkout-left { padding: 55px 70px; border-right: 1px solid #ddd; min-width: 0; }
         .checkout-right { padding: 45px 60px; background: #fafafa; min-width: 0; }
-        .logo { display: inline-block; font-size: 42px; font-weight: 900; color: #15985d; margin-bottom: 45px; text-decoration: none; }
         .breadcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 15px; margin-bottom: 45px; }
         .step-link { color: #333; text-decoration: none; }
         .step-link:hover { color: #15985d; }
-        .step-active { color: #111; font-weight: 800; }
+        .step-active { color: #111; font-weight: 700; }
         .arrow { color: #999; }
-        h2 { font-size: 24px; margin: 28px 0 12px; }
+        .checkout-page h2 { font-size: 24px; font-weight: 700; line-height: 1.4; margin: 28px 0 12px; }
         .shipping-box, .payment-box { border: 1px solid #ddd; border-radius: 8px; overflow: hidden; margin-bottom: 25px; }
         .shipping-row, .payment-row { display: flex; align-items: center; gap: 15px; min-height: 72px; padding: 16px 22px; }
         .check-square { width: 18px; height: 18px; background: #15985d; display: grid; place-items: center; color: white; }
@@ -204,7 +208,7 @@ try {
         .error-box { color: #a12020; background: #fff0f0; padding: 12px; border-radius: 6px; }
         .delivery-info { border: 1px solid #ddd; border-radius: 8px; padding: 15px 20px; overflow-wrap: anywhere; line-height: 1.6; }
         .delivery-info a { color: #15985d; }
-        .product-item { display: grid; grid-template-columns: 85px minmax(0,1fr) auto; gap: 15px; align-items: center; padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid #e5e5e5; }
+        .checkout-product-item { display: grid; grid-template-columns: 85px minmax(0,1fr) auto; gap: 15px; align-items: center; padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid #e5e5e5; }
         .product-img { position: relative; }
         .product-img img { width: 78px; height: 78px; object-fit: contain; border: 1px solid #ddd; }
         .qty-badge { position: absolute; top: -10px; right: 0; background: #999; color: #fff; min-width: 25px; height: 25px; padding: 4px; border-radius: 2px; text-align: center; font-weight: bold; }
@@ -217,10 +221,10 @@ try {
         .coupon-note { color: #777; font-size: 14px; }
         .voucher-summary { border: 1px dashed #a4cbb5; border-radius: 8px; padding: 15px; margin: 24px 0 15px; line-height: 1.6; }
         .voucher-summary a { color: #15985d; font-weight: bold; }
-        .member-box { background: #f1fbf6; border: 1px solid #b9dfca; border-radius: 8px; padding: 14px; line-height: 1.6; }
+        .member-box { background: #f1fbf6; border: 1px solid #b9dfca; border-radius: 8px; padding: 14px; color: #087e49; font-family: Arial, Helvetica, sans-serif; font-size: 16px; font-weight: 400; line-height: 1.6; }
         .saving { color: #15985d; }
         .warning-box { color: #805b12; background: #fff5da; padding: 12px; border-radius: 6px; }
-        .loyal-title { font-size: 24px; font-weight: 800; padding-top: 28px; margin-top: 25px; border-top: 1px solid #ddd; }
+        .checkout-page .loyal-title { font-family: Arial, Helvetica, sans-serif; font-size: 22px; font-weight: 700; line-height: 1.4; padding-top: 28px; margin-top: 25px; margin-bottom: 12px; border-top: 1px solid #ddd; color: #333; }
         .total-row { display: flex; justify-content: space-between; margin: 18px 0; font-size: 17px; gap: 12px; }
         .grand-total { border-top: 1px solid #ddd; padding-top: 25px; margin-top: 25px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; font-size: 20px; }
         .grand-total strong { font-size: 30px; }
@@ -229,14 +233,30 @@ try {
             .checkout-page { grid-template-columns: 1fr; }
             .checkout-left, .checkout-right { padding: 30px 20px; }
             .complete-btn { width: 100%; }
-            .product-item { gap: 10px; }
+            .checkout-product-item { gap: 10px; }
                    }
     </style>
 </head>
 <body>
+<?php include __DIR__ . '/header.php'; ?>
+<script>
+    // Cập nhật khoảng cách theo chiều cao thực tế của header.
+    (function () {
+        const header = document.querySelector('body > header');
+        if (!header) return;
+        function updateHeaderHeight() {
+            document.body.style.setProperty('--checkout-header-height', header.offsetHeight + 'px');
+        }
+        updateHeaderHeight();
+        window.addEventListener('resize', updateHeaderHeight);
+        if ('ResizeObserver' in window) {
+            const observer = new ResizeObserver(updateHeaderHeight);
+            observer.observe(header);
+        }
+    })();
+</script>
 <div class="checkout-page">
     <div class="checkout-left">
-        <a href="index.php" class="logo">TT SHOP</a>
         <div class="breadcrumb">
             <a href="giohang.php" class="step-link">Giỏ hàng</a>
             <span class="arrow">›</span>
@@ -296,7 +316,7 @@ try {
             $qty = max(1, (int)($item['qty'] ?? 1));
             $thanhTien = $price * $qty;
         ?>
-            <div class="product-item">
+            <div class="checkout-product-item">
                 <div class="product-img">
                     <img src="<?= checkout_escape($img) ?>" alt="<?= checkout_escape($name) ?>">
                     <span class="qty-badge"><?= $qty ?></span>
@@ -350,3 +370,4 @@ try {
     });
 </script>
 </body>
+</html>
