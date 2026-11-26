@@ -783,7 +783,7 @@ try {
                         <?php endif; ?>
 
                         <div class="member-btn-wrap">
-                            <button type="button" class="member-btn">NÂNG CẤP TÀI KHOẢN ƯU TIÊN</button>
+                            <button type="button" class="member-btn">CÁC HẠNG </button>
                         </div>
 
                         <?php $selectedTier = $member['tier'] ?? 'Member'; ?>
