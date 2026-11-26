@@ -57,7 +57,7 @@ try {
     $stmt->close();
     if (!$owner) throw new DomainException('Không tìm thấy tài khoản của đơn hàng.');
 
-    $stmt = $conn->prepare('SELECT user_id, trang_thai, ma_giam_gia FROM donhang WHERE id = ? FOR UPDATE');
+    $stmt = $conn->prepare('SELECT user_id, trang_thai, ma_giam_gia, phuong_thuc, payment_status FROM donhang WHERE id = ? FOR UPDATE');
     $stmt->bind_param('i', $id);
     $stmt->execute();
     $order = $stmt->get_result()->fetch_assoc();
@@ -75,6 +75,9 @@ try {
         os_redirect($id, true, 'Trạng thái đơn hàng không thay đổi.');
     }
 
+    if ($order['phuong_thuc']==='PAYOS' && ($order['payment_status']!=='PAID' || $new==='Đã huỷ' || $current==='Đã huỷ')) {
+        throw new DomainException('Đơn QR phải được xác nhận đủ tiền trước khi giao. Không hủy hoặc mở lại đơn QR bằng trạng thái vận chuyển; cần đối soát riêng.');
+    }
     // Hủy đơn giải phóng lượt sử dụng theo voucher_usage().
     // Không mở lại đơn có voucher đã hủy, tránh vượt giới hạn sau khi lượt được dùng lại.
     if ($current === 'Đã huỷ') {

@@ -76,7 +76,7 @@ try {
     }
 
     // Khóa đúng đơn của khách hiện tại; không tiết lộ đơn của khách khác.
-    $stmt = $conn->prepare('SELECT trang_thai FROM donhang
+    $stmt = $conn->prepare('SELECT trang_thai, phuong_thuc FROM donhang
         WHERE id = ? AND user_id = ? FOR UPDATE');
     try {
         $stmt->bind_param('ii', $orderId, $userId);
@@ -89,6 +89,7 @@ try {
         throw new DomainException('Không tìm thấy đơn hàng có thể thao tác.');
     }
 
+    if ($order['phuong_thuc']==='PAYOS') throw new DomainException('Hãy quản lý hủy đơn QR tại trang chi tiết thanh toán; đơn đã chuyển tiền cần liên hệ TT SHOP.');
     // Yêu cầu gửi lại không làm thay đổi đơn hoặc hoàn lượt lần thứ hai.
     $status = (string)$order['trang_thai'];
     if (in_array($status, ['Đã huỷ', 'Đã hủy'], true)) {

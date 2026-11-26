@@ -4,6 +4,7 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/csrf.php';
 require_once __DIR__ . '/validate_helpers.php';
 require_once __DIR__ . '/voucher_helpers.php';
+require_once __DIR__ . '/payment_helpers.php';
 header('Cache-Control: no-store');
 
 function checkout_escape($value): string {
@@ -300,6 +301,14 @@ try {
                         <i class="fas fa-money-bill-wave pay-icon" aria-hidden="true"></i>
                         Thanh toán khi giao hàng (COD)
                     </label>
+                </div>
+                <div class="payment-row" style="border-top:1px solid #ddd;flex-direction:column;align-items:flex-start;gap:6px">
+                    <label>
+                        <input type="radio" name="phuong_thuc" value="PAYOS" <?= !payos_ready() || (int)$totals['total']<=0 ? 'disabled' : '' ?>>
+                        <i class="fas fa-qrcode pay-icon" aria-hidden="true"></i>
+                        Chuyển khoản ngân hàng (VietQR / payOS)
+                    </label>
+                    <small style="display:block;padding:0 0 0 33px;color:#52685c"><?= payos_ready() ? 'QR tự điền số tiền và nội dung. Đơn hàng được xác nhận khi ngân hàng ghi nhận tiền.' : 'Kênh thanh toán QR chưa được cấu hình.' ?></small>
                 </div>
             </div>
             <div class="checkout-action">

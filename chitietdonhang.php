@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/payment_helpers.php';
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -269,7 +270,7 @@ $review = mysqli_fetch_assoc($resultReview);
         <p><b>Người nhận:</b> <?php echo htmlspecialchars($order['ho_ten'] ?? ''); ?></p>
         <p><b>Số điện thoại:</b> <?php echo htmlspecialchars($order['sdt'] ?? ''); ?></p>
         <p><b>Địa chỉ:</b> <?php echo htmlspecialchars($order['dia_chi'] ?? ''); ?></p>
-        <p><b>Thanh toán:</b> <?php echo htmlspecialchars($order['phuong_thuc'] ?? 'COD'); ?></p>
+        <p><b>Thanh toán:</b> <?php echo payos_escape(payos_label($order)); ?></p><?php if(($order['phuong_thuc']??'')==='PAYOS'): ?><p><a href="thanhtoan_qr.php?order_id=<?= (int)$order['id'] ?>">Xem / tiếp tục thanh toán QR</a></p><?php endif; ?>
 
         <span class="status-badge">
             <?php echo htmlspecialchars($order['trang_thai'] ?? 'Chờ xác nhận'); ?>

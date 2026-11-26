@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../payment_helpers.php';
 // admin/orders.php — Danh sách đơn hàng và ưu đãi thành viên.
 require_once __DIR__ . '/check_admin.php';
 require_once __DIR__ . '/../csrf.php';
@@ -272,7 +273,7 @@ include "sidebar.php";
                                         <?php endif; ?>
                                     </td>
                                     <td class="money"><strong><?= ao_money($row['tong_cong']) ?></strong></td>
-                                    <td><?php echo htmlspecialchars($row['phuong_thuc']); ?></td>
+                                    <td><strong style="color:<?= ($row['payment_status']??'')==='PAID'?'#08794f':'inherit' ?>"><?php echo payos_escape(payos_label($row)); ?></strong><?php if($row['phuong_thuc']==='PAYOS'): ?><br><small>Đã nhận <?= ao_money($row['payment_amount_received']) ?></small><?php endif; ?></td>
 
                                     <td>
                                         <span class="status">
@@ -299,12 +300,12 @@ include "sidebar.php";
 
                                     <td class="actions">
                                         <a class="detail" href="order_detail.php?id=<?= (int)$row['id'] ?>">Chi tiết</a>
-                                        |
+                                        <?php if($row['phuong_thuc']!=='PAYOS'): ?>|
                                         <form class="delete-form" method="POST" action="delete_order.php" onsubmit="return confirm('Xóa vĩnh viễn đơn hàng, chi tiết, đánh giá và lịch sử voucher liên quan? Không thể hoàn tác.')">
                                             <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
                                             <input type="hidden" name="csrf_token" value="<?= ao_e($token) ?>">
                                             <button class="delete" type="submit">Xóa</button>
-                                        </form>
+                                        </form><?php endif; ?>
                                     </td>
                                 </tr>
                             <?php } ?>
@@ -321,5 +322,15 @@ include "sidebar.php";
 
 </div>
 
+<?php if(payos_ready()): ?><script>
+async function syncPayments(){
+  if(!document.hidden && !['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)){
+    try{await fetch('payment_sync.php',{method:'POST',credentials:'same-origin',body:new URLSearchParams({csrf_token:<?= json_encode($token) ?>})});}catch(e){}
+    if(!document.hidden && !['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)){location.reload();return;}
+  }
+  setTimeout(syncPayments,45000);
+}
+setTimeout(syncPayments,45000);
+</script><?php endif; ?>
 </body>
 </html>

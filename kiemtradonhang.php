@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/payment_helpers.php';
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -44,8 +45,8 @@ if ($isPost) {
     } else {
         // Không nhận user_id từ GET/POST. Cả hai truy vấn bắt buộc có user_id từ session.
         $sql = $checkType === 'email'
-            ? 'SELECT id, ma_don, ho_ten, sdt, email, dia_chi, phuong_xa, quan_huyen, tinh_thanh, phuong_thuc, tong_cong, trang_thai, created_at FROM donhang WHERE user_id = ? AND email = ? ORDER BY id DESC'
-            : 'SELECT id, ma_don, ho_ten, sdt, email, dia_chi, phuong_xa, quan_huyen, tinh_thanh, phuong_thuc, tong_cong, trang_thai, created_at FROM donhang WHERE user_id = ? AND sdt = ? ORDER BY id DESC';
+            ? 'SELECT id, ma_don, ho_ten, sdt, email, dia_chi, phuong_xa, quan_huyen, tinh_thanh, phuong_thuc, payment_status, tong_cong, trang_thai, created_at FROM donhang WHERE user_id = ? AND email = ? ORDER BY id DESC'
+            : 'SELECT id, ma_don, ho_ten, sdt, email, dia_chi, phuong_xa, quan_huyen, tinh_thanh, phuong_thuc, payment_status, tong_cong, trang_thai, created_at FROM donhang WHERE user_id = ? AND sdt = ? ORDER BY id DESC';
         try {
             if ($checkType === 'email') {
                 $keyword = strtolower($keyword);
@@ -355,7 +356,7 @@ if (!in_array($checkType, ['phone', 'email'], true)) {
 
                             <p>
                                 <b>Thanh toán:</b>
-                                <?php echo htmlspecialchars($order['phuong_thuc'] ?? 'COD'); ?>
+                                <?php echo payos_escape(payos_label($order)); ?>
                             </p>
 
                         </div>

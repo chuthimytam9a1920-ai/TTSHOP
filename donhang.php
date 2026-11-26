@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/payment_helpers.php';
 // Kiểm tra và khởi chạy session nếu chưa được bật
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -17,7 +18,7 @@ $user_id = (int)$_SESSION['user_id'];
 
 // Chuẩn bị câu lệnh SQL lấy toàn bộ đơn hàng của user này, sắp xếp đơn hàng mới nhất lên đầu (ORDER BY id DESC)
 $sql = "
-    SELECT id, ma_don, created_at, tong_cong, phuong_thuc, trang_thai
+    SELECT id, ma_don, created_at, tong_cong, phuong_thuc, payment_status, trang_thai
     FROM donhang
     WHERE user_id = ?
     ORDER BY id DESC
@@ -78,7 +79,7 @@ $result = mysqli_stmt_get_result($stmt);
                         </td>
 
                         <td>
-                            <?php echo htmlspecialchars($row['phuong_thuc'], ENT_QUOTES, 'UTF-8'); ?>
+                            <?php echo payos_escape(payos_label($row)); ?>
                         </td>
 
                         <td>

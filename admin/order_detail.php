@@ -1,5 +1,6 @@
 
 <?php
+require_once __DIR__ . '/../payment_helpers.php';
 require_once __DIR__ . '/check_admin.php';
 require_once __DIR__ . '/../csrf.php';
 header('Cache-Control: no-store');
@@ -70,7 +71,8 @@ $total = (int)$order['tong_cong'];
 $currentStatus = od_status((string)($order['trang_thai'] ?? ''));
 $cancelled = $currentStatus === 'Đã huỷ';
 $hasVoucher = $voucherCode !== '' || $history !== null;
-$terminal = $cancelled && $hasVoucher;
+$qr = ($order['phuong_thuc']??'')==='PAYOS';
+$terminal = ($cancelled && $hasVoucher) || ($qr && (($order['payment_status']??'')!=='PAID' || $cancelled));
 $flash = $_SESSION['admin_order_flash'] ?? null;
 unset($_SESSION['admin_order_flash']);
 
@@ -393,9 +395,15 @@ include "sidebar.php";
 
             <div class="info-item">
                 <b>Phương thức thanh toán</b>
-                <span><?php echo od_e($order['phuong_thuc'] ?? ''); ?></span>
+                <span><?php echo payos_escape(payos_label($order)); ?></span>
             </div>
 
+            <?php if($qr): ?>
+            <div class="info-item"><b>Tiền đã nhận qua QR</b><span><?= od_money($order['payment_amount_received']) ?></span></div>
+            <div class="info-item"><b>Mã giao dịch</b><span><?= od_e($order['payment_reference'] ?? '—') ?></span></div>
+            <div class="info-item"><b>Mã payOS</b><span><?= od_e($order['payos_order_code'] ?? '—') ?></span></div>
+            <div class="info-item"><b>Thời điểm xác nhận</b><span><?= od_e($order['paid_at'] ?? '—') ?></span></div>
+            <?php endif; ?>
             <div class="info-item">
                 <b>Trạng thái</b>
                 <span class="status-badge <?php echo statusClass($order['trang_thai'] ?? ''); ?>">
@@ -466,7 +474,9 @@ include "sidebar.php";
         <?php if ($total !== $subtotal - $discount + $shipping): ?>
             <p class="notice notice-warning">Tổng tiền lưu trong đơn không khớp công thức hiện tại. Hệ thống giữ nguyên dữ liệu lịch sử; hãy kiểm tra trước khi xử lý.</p>
         <?php endif; ?>
-        <?php if ($terminal): ?>
+        <?php if ($qr && $terminal): ?>
+            <p class="muted">Đơn QR chưa được xác nhận đủ tiền hoặc đã hủy. Không thể cập nhật vận chuyển; kiểm tra giao dịch trong payOS.</p>
+        <?php elseif ($terminal): ?>
             <p class="muted">Đơn có voucher đã hủy không được mở lại, để tránh sử dụng vượt giới hạn voucher đã hoàn trả. Khách hàng có thể tạo đơn mới.</p>
         <?php endif; ?>
         <form method="POST" action="update_order_status.php" class="status-form">
@@ -477,7 +487,7 @@ include "sidebar.php";
             <label for="order-status"><b>Cập nhật trạng thái:</b></label>
 
             <select id="order-status" name="trang_thai" required <?= $terminal ? 'disabled' : '' ?>>
-                <?php foreach ($trangThaiList as $status) { ?>
+                <?php foreach ($trangThaiList as $status) { if($qr && in_array($status,['Đã huỷ','Đã hủy'],true) && !$cancelled) continue; ?>
                     <option value="<?php echo od_e($status); ?>"
                         <?php echo ($currentStatus === $status) ? 'selected' : ''; ?>>
                         <?php echo od_e($status); ?>

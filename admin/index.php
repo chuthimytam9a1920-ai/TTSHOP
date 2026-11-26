@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../payment_helpers.php';
 include "check_admin.php";
 include "../connect.php";
 
@@ -143,7 +144,7 @@ if ($revenueError === '') {
 }
 
 $recentOrders = mysqli_query($conn, "
-    SELECT id, ma_don, ho_ten, tong_cong, trang_thai, created_at
+    SELECT id, ma_don, ho_ten, tong_cong, trang_thai, created_at, phuong_thuc, payment_status
     FROM donhang
     ORDER BY id DESC
     LIMIT 8
@@ -371,7 +372,7 @@ $statusClasses = [
                                         </td>
                                         <td><?php echo htmlspecialchars($order['ho_ten']); ?></td>
                                         <td><?php echo number_format((float)$order['tong_cong'], 0, ',', '.'); ?>đ</td>
-                                        <td><span class="status-badge <?php echo $statusClass; ?>"><?php echo htmlspecialchars($order['trang_thai']); ?></span></td>
+                                        <td><span class="status-badge <?php echo $statusClass; ?>"><?php echo htmlspecialchars($order['trang_thai']); ?></span><?php if($order['phuong_thuc']==='PAYOS'): ?><br><small><?= payos_escape(payos_label($order)) ?></small><?php endif; ?></td>
                                     </tr>
                                 <?php } ?>
                             <?php } else { ?>

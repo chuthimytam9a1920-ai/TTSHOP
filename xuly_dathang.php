@@ -4,6 +4,7 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/csrf.php';
 require_once __DIR__ . '/validate_helpers.php';
 require_once __DIR__ . '/voucher_helpers.php';
+require_once __DIR__ . '/payment_helpers.php';
 header('Cache-Control: no-store');
 
 function dh_text($v): string {
@@ -117,7 +118,8 @@ if ($method === 'GET') {
         http_response_code(403);
         exit('Phiên xác thực không hợp lệ. Vui lòng tải lại trang thanh toán.');
     }
-    if (($_POST['phuong_thuc'] ?? '') !== 'COD') {
+    $chosen = $_POST['phuong_thuc'] ?? '';
+    if (!in_array($chosen, ['COD','PAYOS'], true)) {
         dh_fail(validation_message('payment_required'));
     }
     $reviewId = $_POST['review_id'] ?? '';
@@ -155,7 +157,7 @@ if ($method === 'GET') {
         $email = (string)$account['email'];
         
         // Nếu request đã được lưu trước đó, trả lại biên nhận thay vì INSERT lần nữa.
-        $stmt = $conn->prepare('SELECT id, ma_don, ma_giam_gia, tien_giam_gia, tong_cong
+        $stmt = $conn->prepare('SELECT id, ma_don, ma_giam_gia, tien_giam_gia, tong_cong, phuong_thuc
             FROM donhang WHERE user_id = ? AND checkout_request_key = ? LIMIT 1');
         try {
             $stmt->bind_param('is', $userId, $requestKey); $stmt->execute();
@@ -168,6 +170,7 @@ if ($method === 'GET') {
             if ($matchesReview) dh_clear_checkout();
             $_SESSION['checkout_receipt'] = array_merge($existing,
                 ['user_id'=>$userId,'email'=>$email,'created_at'=>time()]);
+            if (($existing['phuong_thuc'] ?? '') === 'PAYOS') dh_redirect('thanhtoan_qr.php?order_id='.(int)$existing['id']);
             dh_redirect('xuly_dathang.php?success='.rawurlencode($ma_don));
         }
 
@@ -219,7 +222,8 @@ if ($method === 'GET') {
 
         $ho = $checkout['ho_ten']; $sdt = $checkout['sdt']; $diachi = $checkout['dia_chi'];
         $tinh = $checkout['tinh_thanh']; $huyen = $checkout['quan_huyen']; $xa = $checkout['phuong_xa'];
-        $payment = 'COD'; $status = 'Chờ xử lý';
+        $payment = $chosen; $status = 'Chờ xử lý';
+        if ($payment === 'PAYOS' && (!payos_ready() || (int)$v['total'] <= 0)) throw new DomainException('Thanh toán QR chưa sẵn sàng hoặc tổng tiền không hợp lệ. Vui lòng chọn COD.');
         $subtotal = (int)$v['subtotal']; $discount = (int)$v['discount'];
         $shipping = (int)$v['shipping']; $total = (int)$v['total'];
         $tier = $v['tier']; $savedCode = $code === '' ? null : $code;
@@ -237,6 +241,16 @@ if ($method === 'GET') {
             $stmt->execute(); $orderId = (int)$conn->insert_id;
         } finally { $stmt->close(); }
         if ($orderId <= 0) throw new RuntimeException('Không xác định được ID đơn hàng.');
+        if ($payment === 'PAYOS') {
+            // Code allocated and committed before any call to the payment provider.
+            $s = $conn->prepare("UPDATE donhang SET payment_status='PENDING',payos_order_code=? WHERE id=?");
+            try {
+                for ($attempt=0; $attempt<5; $attempt++) {
+                    $payosCode=random_int(100000000,999999999); $s->bind_param('ii',$payosCode,$orderId);
+                    try { $s->execute(); break; } catch (mysqli_sql_exception $ex) { if ($ex->getCode()!==1062 || $attempt===4) throw $ex; }
+                }
+            } finally { $s->close(); }
+        }
 
         // TT + thời điểm tạo đơn + ID đơn (ít nhất 4 chữ số, không cắt ID lớn).
         // Dùng created_at của database; 4 chữ số phân biệt với mã cũ 3 số ngẫu nhiên.
@@ -290,6 +304,14 @@ if ($method === 'GET') {
             'ma_giam_gia'=>$savedCode,'tien_giam_gia'=>$discount,'tong_cong'=>$total,
             'user_id'=>$userId,'email'=>$email,'created_at'=>time()];
         dh_clear_checkout();
+        if ($payment === 'PAYOS') {
+            // Order is already safely persisted. API failures never recreate the order.
+            try {
+                $url=payos_create($conn,payos_order($conn,$orderId,$userId));
+                if ($url !== '') dh_redirect($url);
+            } catch (Throwable $e) { error_log('TT SHOP payOS create: '.$e->getMessage()); }
+            dh_redirect('thanhtoan_qr.php?order_id='.$orderId);
+        }
         // POST/Redirect/GET: F5 trang thành công không gửi lại yêu cầu đặt hàng.
         dh_redirect('xuly_dathang.php?success='.rawurlencode($ma_don));
     } catch (Throwable $e) {

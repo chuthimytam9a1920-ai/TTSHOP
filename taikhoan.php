@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/payment_helpers.php';
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -783,7 +784,7 @@ try {
                         <?php endif; ?>
 
                         <div class="member-btn-wrap">
-                            <button type="button" class="member-btn">CÁC HẠNG </button>
+                            <button type="button" class="member-btn">NÂNG CẤP CÁC HẠNG </button>
                         </div>
 
                         <?php $selectedTier = $member['tier'] ?? 'Member'; ?>
@@ -949,7 +950,7 @@ try {
                                     <p><b>Người nhận:</b> <?php echo htmlspecialchars($order['ho_ten'] ?? $order['ten_nguoi_nhan'] ?? 'Đang cập nhật'); ?></p>
                                     <p><b>Số điện thoại:</b> <?php echo htmlspecialchars($order['sdt'] ?? $order['so_dien_thoai'] ?? 'Đang cập nhật'); ?></p>
                                     <p><b>Địa chỉ:</b> <?php echo htmlspecialchars($order['dia_chi'] ?? $order['diachi'] ?? 'Đang cập nhật'); ?></p>
-                                    <p><b>Thanh toán:</b> <?php echo htmlspecialchars($order['phuong_thuc'] ?? 'COD'); ?></p>
+                                    <p><b>Thanh toán:</b> <?php echo payos_escape(payos_label($order)); ?></p>
                                     <?php if (!empty($order['ma_giam_gia'])): ?>
                                         <p class="tk-order-voucher"><b>Mã giảm giá:</b> <?= tk_h($order['ma_giam_gia']) ?> · Giảm <?= tk_money($order['tien_giam_gia'] ?? 0) ?></p>
                                     <?php endif; ?>
@@ -966,7 +967,9 @@ try {
         Xem chi tiết
     </a>
 
-    <?php if (in_array($order['trang_thai'] ?? '', ['Chờ xử lý', 'Chờ lấy hàng'])) { ?>
+    <?php if (($order['phuong_thuc']??'')==='PAYOS') { ?>
+<a href="thanhtoan_qr.php?order_id=<?= (int)$order['id'] ?>" class="order-detail-btn"><?= ($order['payment_status']??'')==='PENDING'?'Tiếp tục thanh toán':'Chi tiết thanh toán' ?></a>
+<?php } elseif (in_array($order['trang_thai'] ?? '', ['Chờ xử lý', 'Chờ lấy hàng'])) { ?>
 <form class="cancel-order-form" method="POST" action="huydonhang.php"
       onsubmit="return confirmCancelOrder(this)">
     <input type="hidden" name="id" value="<?= (int)$order['id'] ?>">

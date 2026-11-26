@@ -34,11 +34,11 @@ try {
     $conn->begin_transaction();
     $inTransaction = true;
 
-    $stmt = $conn->prepare('SELECT id FROM donhang WHERE id = ? FOR UPDATE');
+    $stmt = $conn->prepare('SELECT id, phuong_thuc FROM donhang WHERE id = ? FOR UPDATE');
     try {
         $stmt->bind_param('i', $id);
         $stmt->execute();
-        $exists = (bool)$stmt->get_result()->fetch_assoc();
+        $exists = $stmt->get_result()->fetch_assoc();
     } finally {
         $stmt->close();
     }
@@ -48,6 +48,7 @@ try {
         order_delete_redirect(false, 'Đơn hàng không tồn tại hoặc đã bị xóa.');
     }
 
+    if ($exists['phuong_thuc']==='PAYOS') { $conn->rollback(); $inTransaction=false; order_delete_redirect(false,'Không xóa đơn QR để bảo toàn lịch sử giao dịch.'); }
     // Chi tiết đơn có FK RESTRICT, phải xóa trước đơn hàng.
     // Đánh giá và lịch sử voucher được xóa theo FK ON DELETE CASCADE
     // trong ttshop_final.sql và update_voucher_fix.sql.
